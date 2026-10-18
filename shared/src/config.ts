@@ -1,7 +1,9 @@
 // One place for names and addresses that aren't final yet.
+// The app name and URL scheme live in brand.json so the Expo config can read them too.
+import brand from './brand.json';
 
-/** Patient-facing app name. Not final. */
-export const APP_NAME = 'Living Boundless';
+/** Patient-facing app name. Not final: change it in brand.json. */
+export const APP_NAME: string = brand.appName;
 
 export const CLINIC_NAME = 'Boundless Vitality';
 
@@ -15,5 +17,5 @@ export const PROVIDER_NAME = 'Cristie';
  */
 export const PLAN_LINK_BASE = 'https://boundless-vitality.github.io/living-boundless/p/';
 
-/** Custom URL scheme for the patient app (deep links, later phases). */
-export const APP_SCHEME = 'livingboundless';
+/** Custom URL scheme for the patient app (deep links). */
+export const APP_SCHEME: string = brand.scheme;
