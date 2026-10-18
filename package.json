@@ -1,0 +1,17 @@
+{
+  "name": "living-boundless",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "coach",
+    "app"
+  ],
+  "scripts": {
+    "test": "npm run test -w shared",
+    "size": "npm run size -w shared",
+    "coach": "npm run dev -w coach",
+    "coach:build": "npm run build -w coach",
+    "app": "npm run start -w app",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w coach && npm run typecheck -w app"
+  }
+}
