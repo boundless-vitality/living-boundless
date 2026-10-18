@@ -11,8 +11,8 @@ export default defineConfig(({ command }) => ({
   build: {
     rollupOptions: {
       input: {
-        coach: resolve(__dirname, 'index.html'),
-        patient: resolve(__dirname, 'p/index.html'),
+        coach: resolve(import.meta.dirname, 'index.html'),
+        patient: resolve(import.meta.dirname, 'p/index.html'),
       },
     },
   },
