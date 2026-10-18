@@ -4,3 +4,4 @@ dist/
 *.tsbuildinfo
 .env*.local
 coverage/
+open-app-on-iphone.png
