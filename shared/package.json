@@ -1,0 +1,23 @@
+{
+  "name": "@lb/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "size": "vitest run test/size.report.test.ts --reporter=verbose",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5",
+    "qrcode": "^1.5.4",
+    "@types/qrcode": "^1.5.5"
+  }
+}
