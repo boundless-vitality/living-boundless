@@ -12,6 +12,9 @@ export interface ReportMeal {
   label: string;
   /** "Followed", "Substituted", "Skipped", or "Not logged" */
   status: string;
+  /** "8:10 am" when known */
+  time?: string;
+  /** pick-one choice and/or substitution note */
   detail?: string;
 }
 
@@ -29,6 +32,10 @@ export interface ReportDay {
   /** Check-in scores, 1–5, if given. */
   energy?: number;
   mood?: number;
+  /** Check-in taps and note, kept separate so they can stand out. */
+  checkIn?: { tags: string[]; note?: string };
+  /** Quick keys for the day card. */
+  badges: { allFollowed: boolean; trained: boolean; drank: boolean };
   lines: { label: string; value: string }[];
 }
 
@@ -128,14 +135,12 @@ export function buildReport(input: {
           }
           used.add(log);
           const bits: string[] = [];
-          const t = timeText(log);
-          if (t) bits.push(t);
           for (const [itemIdx, optIdx] of Object.entries(log.choices ?? {})) {
             const opt = m.items[Number(itemIdx)]?.options[optIdx];
             if (opt) bits.push(`had ${opt.name}`);
           }
           if (log.note) bits.push(`“${log.note}”`);
-          meals.push({ label: m.label, status: STATUS[log.status], detail: bits.join(' · ') || undefined });
+          meals.push({ label: m.label, status: STATUS[log.status], time: timeText(log), detail: bits.join(' · ') || undefined });
         }
       } else {
         beforePlan = true;
@@ -145,7 +150,7 @@ export function buildReport(input: {
     for (const l of dayLogs) {
       if (used.has(l)) continue;
       used.add(l);
-      meals.push({ label: l.mealLabel, status: STATUS[l.status], detail: [timeText(l), l.note && `“${l.note}”`].filter(Boolean).join(' · ') || undefined });
+      meals.push({ label: l.mealLabel, status: STATUS[l.status], time: timeText(l), detail: l.note ? `“${l.note}”` : undefined });
     }
     for (const l of used) summary[l.status]++;
 
@@ -185,19 +190,17 @@ export function buildReport(input: {
           lines.push({ label: 'Alcohol', value: parts.length ? parts.join(', ') : 'Yes' });
         }
       }
-      const c = entry.checkIn;
-      if (c) {
-        const bits: string[] = [];
-        if (c.energy) bits.push(`energy ${c.energy}/5`);
-        if (c.mood) bits.push(`mood ${c.mood}/5`);
-        if (c.tags.length) bits.push(c.tags.join(', '));
-        if (bits.length) lines.push({ label: 'Check-in', value: bits.join(' · ') });
-        if (c.note) lines.push({ label: 'Note', value: `“${c.note}”` });
-      }
     }
 
     gridFacts.push({ date, level: !active ? 'na' : empty ? 'none' : allMealsLogged ? 'full' : 'partial', plan: rec?.plan, entry, active });
-    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, supplements, energy: entry?.checkIn?.energy, mood: entry?.checkIn?.mood, lines };
+    const c = entry?.checkIn;
+    const checkIn = c && (c.tags.length || c.note) ? { tags: c.tags, note: c.note } : undefined;
+    const badges = {
+      allFollowed: active && allMealsLogged && meals.every((m) => m.status === 'Followed'),
+      trained: !!entry?.trained,
+      drank: !!entry?.alcohol?.drank,
+    };
+    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, supplements, energy: c?.energy, mood: c?.mood, checkIn, badges, lines };
   });
 
   // Supplement consistency, with a gentle pattern note when misses cluster on one weekday.

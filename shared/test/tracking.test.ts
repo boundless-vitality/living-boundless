@@ -79,9 +79,9 @@ describe('report', () => {
   it('includes statuses, times, substitution notes and pick-one choices', () => {
     const mon = report.days[1];
     expect(mon.dayPlanName).toBe('Low-Carb Day');
-    expect(mon.meals[0]).toEqual({ label: 'Breakfast', status: 'Followed', detail: '8:10 am' });
+    expect(mon.meals[0]).toEqual({ label: 'Breakfast', status: 'Followed', time: '8:10 am', detail: undefined });
     expect(mon.meals[1].detail).toContain('4 turkey roll-ups');
-    expect(mon.meals[3]).toMatchObject({ label: 'Snack 2', status: 'Followed', detail: '8:10 am · had protein bar' });
+    expect(mon.meals[3]).toMatchObject({ label: 'Snack 2', status: 'Followed', time: '8:10 am', detail: 'had protein bar' });
     expect(mon.meals[2].status).toBe('Not logged');
   });
 
@@ -98,9 +98,8 @@ describe('report', () => {
     expect(wed.lines).toEqual([
       { label: 'Water', value: '32.9 oz' },
       { label: 'Alcohol', value: '2 wine' },
-      { label: 'Check-in', value: 'energy 3/5 · mood 4/5 · bloated' },
-      { label: 'Note', value: '“Long day”' },
     ]);
+    expect(wed).toMatchObject({ energy: 3, mood: 4, checkIn: { tags: ['bloated'], note: 'Long day' }, badges: { drank: true, trained: false, allFollowed: false } });
   });
 });
 

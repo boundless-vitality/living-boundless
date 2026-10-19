@@ -8,7 +8,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { entriesInRange, logsInRange } from '@/lib/db';
-import { reportHtml } from '@/lib/reportHtml';
+import { REPORT_MARGINS, reportHtml } from '@/lib/reportHtml';
 import { useStore } from '@/lib/store';
 import { Body, Button, Card, Chip, Label, LinkText, Screen, Title, TopBar } from '@/ui/components';
 import { colors } from '@/ui/theme';
@@ -58,7 +58,7 @@ export default function Report() {
         patientName: name,
         planCodeOf: planCode,
       });
-      const { uri } = await Print.printToFileAsync({ html: reportHtml(model) });
+      const { uri } = await Print.printToFileAsync({ html: reportHtml(model), margins: REPORT_MARGINS });
       if (!(await Sharing.isAvailableAsync())) {
         setError("Sharing isn't available on this device.");
         return;

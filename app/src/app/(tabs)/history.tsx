@@ -118,8 +118,8 @@ export default function History() {
           {report.days.some((d) => d.energy || d.mood) && (
             <Card style={{ gap: 12 }}>
               <IconLabel icon="emoticon-outline">Energy & mood</IconLabel>
-              <Bars label="Energy" icon="lightning-bolt-outline" values={report.days.map((d) => d.energy)} />
-              <Bars label="Mood" icon="emoticon-happy-outline" values={report.days.map((d) => d.mood)} />
+              <Bars label="Energy (1 low, 5 great)" icon="lightning-bolt-outline" values={report.days.map((d) => d.energy)} dates={report.days.map((d) => d.date)} />
+              <Bars label="Mood (1 low, 5 great)" icon="emoticon-happy-outline" values={report.days.map((d) => d.mood)} dates={report.days.map((d) => d.date)} />
             </Card>
           )}
 
@@ -155,15 +155,17 @@ function Tile({ big, small, label }: { big: string; small?: string; label: strin
 
 function Calendar({ dates, levels, today, onPress }: { dates: DateStr[]; levels: string[]; today: DateStr; onPress: (d: DateStr) => void }) {
   if (!dates.length) return null;
-  // Pad so the first date lands under its weekday.
-  const pad = weekdayIndex(dates[0]);
+  // A week fits on one row: no padding, each day labeled with its own weekday.
+  const oneRow = dates.length <= 7;
+  // Otherwise pad so the first date lands under its weekday.
+  const pad = oneRow ? 0 : weekdayIndex(dates[0]);
   const cells: (DateStr | null)[] = [...Array(pad).fill(null), ...dates];
-  while (cells.length % 7) cells.push(null);
-  const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  while (!oneRow && cells.length % 7) cells.push(null);
+  const weeks = oneRow ? [cells] : Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
   return (
     <View style={{ gap: 6 }}>
       <View style={st.calRow}>
-        {LETTERS.map((l, i) => (
+        {(oneRow ? dates.map((d) => LETTERS[weekdayIndex(d)]) : LETTERS).map((l, i) => (
           <Text key={i} style={st.calLetter}>{l}</Text>
         ))}
       </View>
@@ -200,20 +202,44 @@ function LegendDot({ style, label }: { style?: object; label: string }) {
   );
 }
 
-function Bars({ label, icon, values }: { label: string; icon: 'lightning-bolt-outline' | 'emoticon-happy-outline'; values: (number | undefined)[] }) {
+function Bars({ label, icon, values, dates }: { label: string; icon: 'lightning-bolt-outline' | 'emoticon-happy-outline'; values: (number | undefined)[]; dates: DateStr[] }) {
   const max = 5;
+  const short = dates.length <= 7;
   return (
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <MaterialCommunityIcons name={icon} size={16} color={colors.moss} />
         <Body small semi>{label}</Body>
       </View>
-      <View style={st.bars}>
-        {values.map((v, i) => (
-          <View key={i} style={st.barSlot}>
-            {v ? <View style={[st.bar, { height: `${(v / max) * 100}%` }]} /> : <View style={st.barEmpty} />}
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        <View style={st.yAxis}>
+          {[5, 4, 3, 2, 1].map((n) => (
+            <Text key={n} style={st.yLabel}>{n}</Text>
+          ))}
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={st.plot}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View key={i} style={[st.gridLine, { top: `${(i / 4) * 100}%` }]} />
+            ))}
+            <View style={st.bars}>
+              {values.map((v, i) => (
+                <View key={i} style={st.barSlot}>
+                  {v ? <View style={[st.bar, { height: `${((v - 1) / (max - 1)) * 100}%`, minHeight: 4 }]} /> : null}
+                </View>
+              ))}
+            </View>
           </View>
-        ))}
+          <View style={st.xAxis}>
+            {short
+              ? dates.map((d) => (
+                  <Text key={d} style={[st.xLabel, { flex: 1 }]}>{LETTERS[weekdayIndex(d)]}</Text>
+                ))
+              : [dates[0], dates[dates.length - 1]].map((d) => (
+                  <Text key={d} style={st.xLabel}>{`${Number(d.slice(5, 7))}/${Number(d.slice(8))}`}</Text>
+                ))}
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -239,8 +265,13 @@ const st = StyleSheet.create({
   legend: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 4 },
   legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: colors.sand, backgroundColor: colors.white },
   legendText: { fontFamily: fonts.body, fontSize: 12, color: colors.charcoal },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', height: 60, gap: 3 },
+  yAxis: { height: 80, justifyContent: 'space-between', marginTop: -6, marginBottom: -6 },
+  yLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.charcoal, lineHeight: 12 },
+  plot: { height: 80, position: 'relative' },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: colors.beige },
+  bars: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   barSlot: { flex: 1, height: '100%', justifyContent: 'flex-end' },
-  bar: { backgroundColor: colors.sage, borderRadius: 3 },
-  barEmpty: { height: 2, backgroundColor: colors.beige, borderRadius: 1 },
+  bar: { backgroundColor: colors.moss, borderRadius: 3 },
+  xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+  xLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.charcoal, textAlign: 'center' },
 });
