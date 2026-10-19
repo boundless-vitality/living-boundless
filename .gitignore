@@ -5,3 +5,4 @@ dist/
 .env*.local
 coverage/
 open-app-on-iphone.png
+sample-plan-qr.png
