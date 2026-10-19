@@ -135,6 +135,12 @@ export async function entriesInRange(db: SQLiteDatabase, from: DateStr, to: Date
   return rows.map((r) => JSON.parse(r.data) as DayEntry);
 }
 
+/** Which meals were logged on which dates (for the week dots). */
+export async function mealLogKeys(db: SQLiteDatabase): Promise<{ date: DateStr; planId: string; mealId: number }[]> {
+  const rows = await db.getAllAsync<{ date: string; plan_id: string; meal_id: number }>('SELECT date, plan_id, meal_id FROM meal_logs');
+  return rows.map((r) => ({ date: r.date, planId: r.plan_id, mealId: r.meal_id }));
+}
+
 /** Every date with a meal log (for streaks). */
 export async function mealLogDates(db: SQLiteDatabase): Promise<DateStr[]> {
   const rows = await db.getAllAsync<{ date: string }>('SELECT DISTINCT date FROM meal_logs');

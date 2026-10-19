@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useStore } from '@/lib/store';
 import { Body, Card, Chip, Label, Title } from './components';
 import { colors, fonts } from './theme';
+import { WaterCard } from './WaterCard';
 
 export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
   const router = useRouter();
@@ -59,17 +60,7 @@ export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
       </Card>
 
       {plan.features.water && (
-        <Card style={{ gap: 10 }}>
-          <Label>Water</Label>
-          <View style={st.counterRow}>
-            <RoundBtn label="−" disabled={!e.water} onPress={() => set((x) => ({ ...x, water: Math.max(0, (x.water ?? 0) - 1) }))} />
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={st.bigNum}>{e.water ?? 0}</Text>
-              <Body muted small>{plan.features.waterGoal ? `of ${plan.features.waterGoal} glasses` : 'glasses'}</Body>
-            </View>
-            <RoundBtn label="+" onPress={() => set((x) => ({ ...x, water: (x.water ?? 0) + 1 }))} />
-          </View>
-        </Card>
+        <WaterCard entry={e} goalOz={plan.features.waterGoal} onChange={(oz) => set((x) => ({ ...x, waterOz: oz }))} />
       )}
 
       {plan.features.alcohol && (

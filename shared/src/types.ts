@@ -81,6 +81,7 @@ export type Schedule =
 
 export interface Features {
   water: boolean;
+  /** Optional daily goal in fluid ounces. Patients log in whatever unit they like. */
   waterGoal?: number;
   alcohol: boolean;
   checkIn: boolean;

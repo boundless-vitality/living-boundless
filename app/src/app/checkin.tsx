@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '@/lib/store';
 import { Body, Button, Chip, Label, LinkText, Title, TopBar } from '@/ui/components';
-import { DisclaimerGate, DisclaimerInline, DisclaimerLine } from '@/ui/Disclaimer';
+import { DisclaimerGate, DisclaimerInline } from '@/ui/Disclaimer';
 import { colors, fonts, radius } from '@/ui/theme';
 
 export default function CheckInScreen() {
@@ -44,7 +44,7 @@ export default function CheckInScreen() {
           <DisclaimerGate />
           {disclaimerAck && (
             <>
-              <DisclaimerLine />
+              <DisclaimerInline />
               <Scale label="Energy" value={c.energy} onChange={(v) => setC((x) => ({ ...x, energy: v }))} low="low" high="great" />
               <Scale label="Mood" value={c.mood} onChange={(v) => setC((x) => ({ ...x, mood: v }))} low="low" high="great" />
 

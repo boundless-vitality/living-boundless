@@ -201,7 +201,7 @@ export async function buildPlanPdf(plan: Plan, link: string, patientName: string
 
   // Tracking extras (so the chart shows what the patient was asked to track)
   const extras = [
-    plan.features.water ? `water (${plan.features.waterGoal ?? '—'} glasses/day)` : '',
+    plan.features.water ? (plan.features.waterGoal ? `water (goal ${plan.features.waterGoal} oz/day)` : 'water') : '',
     plan.features.alcohol ? 'alcohol' : '',
     plan.features.checkIn ? 'daily check-in' : '',
   ].filter(Boolean);

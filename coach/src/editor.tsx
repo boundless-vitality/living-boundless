@@ -502,14 +502,14 @@ export function FeaturesEditor({ plan, update }: { plan: Plan; update: Update })
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div className="row" style={{ alignItems: 'center' }}>
           <label className="check">
-            <input type="checkbox" checked={f.water} onChange={(e) => set({ water: e.target.checked, waterGoal: e.target.checked ? (f.waterGoal ?? 8) : undefined })} />
+            <input type="checkbox" checked={f.water} onChange={(e) => set({ water: e.target.checked, waterGoal: e.target.checked ? f.waterGoal : undefined })} />
             Water tracking
           </label>
           {f.water && (
             <label className="check">
-              Daily goal
-              <input type="number" min="1" max="30" value={f.waterGoal ?? ''} onChange={(e) => set({ waterGoal: numOrUndef(e.target.value) })} />
-              glasses
+              Daily goal (optional)
+              <input type="number" min="8" max="400" step="1" placeholder="e.g. 64" value={f.waterGoal ?? ''} onChange={(e) => set({ waterGoal: numOrUndef(e.target.value) })} />
+              oz
             </label>
           )}
         </div>

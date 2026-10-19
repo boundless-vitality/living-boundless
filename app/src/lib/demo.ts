@@ -70,7 +70,7 @@ export async function loadDemo(db: SQLiteDatabase): Promise<void> {
       date,
       supplements: plan.supplements.filter(() => rand() < 0.8).map((s) => s.name),
       trained: rand() < 0.45,
-      water: plan.features.water ? Math.floor(4 + rand() * 7) : undefined,
+      waterOz: plan.features.water ? Array.from({ length: 2 + Math.floor(rand() * 4) }, () => (rand() < 0.5 ? 8 : 16.9)) : undefined,
       alcohol: plan.features.alcohol ? (rand() < 0.2 ? { drank: true, drinks: { wine: 1 + Math.floor(rand() * 2) } } : rand() < 0.8 ? { drank: false } : undefined) : undefined,
       checkIn:
         plan.features.checkIn && rand() < 0.7

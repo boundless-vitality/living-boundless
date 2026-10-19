@@ -1,5 +1,5 @@
 import {
-  PROVIDER_NAME, addDays, currentStreak, weekMessage, weekSummary, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
+  PROVIDER_NAME, addDays, currentStreak, type DayLevel, weekMessage, weekSummary, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
 } from '@lb/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -17,7 +17,7 @@ const FUTURE_DAYS = 6;
 export default function Today() {
   const router = useRouter();
   const store = useStore();
-  const { plans, logs, loadLogs, name, flash, setFlash, lastChange, undo, dismissUndo, logged } = store;
+  const { plans, logs, loadLogs, name, flash, setFlash, lastChange, undo, dismissUndo, logged, levels } = store;
   const today = todayLocal();
   const [date, setDate] = useState<DateStr>(today);
 
@@ -100,11 +100,12 @@ export default function Today() {
         const streak = currentStreak(logged, today);
         return (
           <View style={s.weekRow}>
-            <WeekDots logged={logged} monday={w.monday} today={today} />
+            <WeekDots levels={levels} monday={w.monday} today={today} />
             <Text style={s.weekText}>
               {weekMessage(w.logged, w.elapsed)}
               {streak >= 2 ? `  ${streak} days in a row.` : ''}
             </Text>
+            <Text style={s.weekLegend}>Darker: every meal logged · Lighter: part of the day</Text>
           </View>
         );
       })()}
@@ -185,16 +186,16 @@ function StatusLine({ log }: { log?: MealLog }) {
   );
 }
 
-function WeekDots({ logged, monday, today }: { logged: Set<DateStr>; monday: DateStr; today: DateStr }) {
+function WeekDots({ levels, monday, today }: { levels: Map<DateStr, DayLevel>; monday: DateStr; today: DateStr }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}>
       {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((l, i) => {
         const d = addDays(monday, i);
-        const on = logged.has(d);
+        const level = levels.get(d);
         const future = d > today;
         return (
           <View key={i} style={{ alignItems: 'center', gap: 3 }}>
-            <View style={[s.weekDot, on && s.weekDotOn, future && { opacity: 0.35 }]} />
+            <View style={[s.weekDot, level === 'partial' && s.weekDotPartial, level === 'full' && s.weekDotOn, future && { opacity: 0.35 }]} />
             <Text style={s.weekLetter}>{l}</Text>
           </View>
         );
@@ -215,7 +216,9 @@ const s = StyleSheet.create({
   weekRow: { backgroundColor: colors.cream, borderRadius: radius.lg, padding: 12, gap: 8, borderWidth: 1, borderColor: colors.beige },
   weekText: { fontFamily: fonts.body, fontSize: 15, color: colors.offBlack, textAlign: 'center' },
   weekDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colors.sand, backgroundColor: colors.white },
-  weekDotOn: { backgroundColor: colors.sage, borderColor: colors.moss },
+  weekDotOn: { backgroundColor: colors.moss, borderColor: colors.moss },
+  weekDotPartial: { backgroundColor: '#d6dcc9', borderColor: colors.sage },
+  weekLegend: { fontFamily: fonts.body, fontSize: 12, color: colors.charcoal, textAlign: 'center' },
   weekLetter: { fontFamily: fonts.semi, fontSize: 11, color: colors.charcoal },
   todayBtn: { backgroundColor: colors.offBlack, borderRadius: radius.pill, paddingVertical: 7, paddingHorizontal: 14 },
   todayBtnText: { fontFamily: fonts.semi, fontSize: 14, color: colors.cream },

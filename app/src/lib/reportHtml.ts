@@ -33,6 +33,8 @@ export function reportHtml(r: ReportModel): string {
   .summary div { display: flex; flex-direction: column; }
   .summary b { font-size: 16px; }
   .summary span { color: #3a3733; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .extras { margin: -6px 0 14px; }
+  .extras td { padding: 3px 6px 3px 0; }
   .day { border-top: 1px solid #dccbb0; padding: 8px 0 6px; page-break-inside: avoid; }
   .day-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }
   .date { font-weight: 700; font-size: 12.5px; }
@@ -55,6 +57,7 @@ export function reportHtml(r: ReportModel): string {
     <div><b>${s.substituted}</b><span>substituted</span></div>
     <div><b>${s.skipped}</b><span>skipped</span></div>
   </div>
+  ${r.extras.length ? `<table class="extras">${r.extras.map((x) => `<tr><td class="meal">${esc(x.label)}</td><td>${esc(x.value)}</td></tr>`).join('')}</table>` : ''}
   ${days}
   <p class="footer">Shared by the patient from the ${esc(APP_NAME)} app. Portions only; no calories or macros are tracked.</p>
   </body></html>`;

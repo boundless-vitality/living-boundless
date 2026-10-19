@@ -3,7 +3,7 @@ import { addDays } from '../src/dates';
 import { carbCyclingPlan } from '../src/fixtures';
 import type { PlanRecord } from '../src/importing';
 import { buildReport } from '../src/report';
-import { currentStreak, loggedDays, weekSummary, weekMessage, type DayEntry, type MealLogData } from '../src/tracking';
+import { currentStreak, dayLevels, loggedDays, waterToGo, waterTotal, weekSummary, weekMessage, type DayEntry, type MealLogData } from '../src/tracking';
 
 const today = '2026-11-12'; // Thursday
 
@@ -33,6 +33,21 @@ describe('streak and weekly view', () => {
   });
 });
 
+describe('water', () => {
+  it('keeps earlier amounts when the unit changes mid-day', () => {
+    // Two 8 oz glasses, then switch to a 16 oz bottle: 8 + 8 + 16, not 16 + 16 + 16.
+    const e: DayEntry = { date: today, waterOz: [8, 8, 16] };
+    expect(waterTotal(e)).toBe(32);
+  });
+
+  it('says how many of the current unit are left, with or without a goal', () => {
+    expect(waterToGo(32, 64, { label: 'Bottle', oz: 16 })).toBe('About 2 more bottles (16 oz) to reach 64 oz');
+    expect(waterToGo(60, 64, { label: 'Glass', oz: 8 })).toBe('About 1 more glass (8 oz) to reach 64 oz');
+    expect(waterToGo(70, 64, { label: 'Glass', oz: 8 })).toBeUndefined();
+    expect(waterToGo(10, undefined, { label: 'Glass', oz: 8 })).toBeUndefined();
+  });
+});
+
 describe('report', () => {
   const records: PlanRecord[] = [{ plan: carbCyclingPlan, activatedOn: '2026-11-03', activatedAt: '2026-11-03T10:00:00Z' }];
   const log = (date: string, mealId: number, status: MealLogData['status'], extra: Partial<MealLogData> = {}): MealLogData => ({
@@ -47,7 +62,7 @@ describe('report', () => {
       log('2026-11-09', 6, 'followed', { choices: { 0: 1 } }),
       log('2026-11-11', 8, 'skipped'),
     ],
-    entries: [{ date: '2026-11-11', water: 6, alcohol: { drank: true, drinks: { wine: 2 } }, checkIn: { energy: 3, mood: 4, tags: ['bloated'], note: 'Long day' } }],
+    entries: [{ date: '2026-11-11', waterOz: [8, 8, 16.9], alcohol: { drank: true, drinks: { wine: 2 } }, checkIn: { energy: 3, mood: 4, tags: ['bloated'], note: 'Long day' } }],
     from: '2026-11-08',
     to: '2026-11-11',
     patientName: 'Alex',
@@ -70,13 +85,41 @@ describe('report', () => {
     expect(mon.meals[2].status).toBe('Not logged');
   });
 
+  it('totals water, alcohol and check-ins across the range', () => {
+    expect(report.extras).toEqual([
+      { label: 'Water', value: 'logged 1 day · average 32.9 oz on those days' },
+      { label: 'Alcohol', value: '1 day with drinks (2 total) · 0 days with none' },
+      { label: 'Check-ins', value: '1 day · average energy 3/5 · average mood 4/5' },
+    ]);
+  });
+
   it('includes water, alcohol and the check-in', () => {
     const wed = report.days[3];
     expect(wed.lines).toEqual([
-      { label: 'Water', value: '6 glasses' },
+      { label: 'Water', value: '32.9 oz' },
       { label: 'Alcohol', value: '2 wine' },
       { label: 'Check-in', value: 'energy 3/5 · mood 4/5 · bloated' },
       { label: 'Note', value: '“Long day”' },
     ]);
+  });
+});
+
+describe('water wording', () => {
+  it('pluralizes glass correctly', () => {
+    expect(waterToGo(0, 64, { label: 'Glass', oz: 8 })).toBe('About 8 more glasses (8 oz) to reach 64 oz');
+  });
+});
+
+describe('dayLevels (week dots)', () => {
+  it('is full when every meal is logged and partial otherwise', () => {
+    const records: PlanRecord[] = [{ plan: carbCyclingPlan, activatedOn: '2026-11-03', activatedAt: '2026-11-03T10:00:00Z' }];
+    const id = carbCyclingPlan.id;
+    const mon = [3, 4, 5, 6, 7].map((mealId) => ({ date: '2026-11-09', planId: id, mealId }));
+    const tue = [{ date: '2026-11-10', planId: id, mealId: 3 }];
+    const levels = dayLevels(records, [...mon, ...tue], [{ date: '2026-11-11', waterOz: [8] }]);
+    expect(levels.get('2026-11-09')).toBe('full');
+    expect(levels.get('2026-11-10')).toBe('partial');
+    expect(levels.get('2026-11-11')).toBe('partial');
+    expect(levels.get('2026-11-12')).toBeUndefined();
   });
 });

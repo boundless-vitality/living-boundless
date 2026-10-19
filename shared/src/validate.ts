@@ -64,8 +64,8 @@ export function validatePlan(p: Plan): string[] {
     if (!Number.isFinite(w.grams) || w.grams <= 0) errs.push('Post-workout carbs: type the grams.');
     if (!w.foods?.trim()) errs.push('Post-workout carbs: add foods to hit it.');
   }
-  if (p.features.water && p.features.waterGoal != null && (!isInt(p.features.waterGoal) || p.features.waterGoal < 1 || p.features.waterGoal > 30)) {
-    errs.push('Water goal should be 1–30 glasses.');
+  if (p.features.water && p.features.waterGoal != null && (!isInt(p.features.waterGoal) || p.features.waterGoal < 8 || p.features.waterGoal > 400)) {
+    errs.push('Water goal should be 8–400 oz (or leave it blank).');
   }
   if (!isInt(p.nextId) || p.nextId <= maxId) errs.push('Internal id counter is out of date.');
   return [...new Set(errs)];

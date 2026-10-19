@@ -39,7 +39,7 @@ export const simplePlan: Plan = {
   schedule: { kind: 'daily', dayPlanId: 1 },
   supplements: [{ name: 'Vitamin D3', dose: '5,000 IU', timing: 'with breakfast' }],
   notes: 'Drink water through the day. Season freely with herbs and spices.',
-  features: { water: true, waterGoal: 8, alcohol: false, checkIn: false },
+  features: { water: true, waterGoal: 64, alcohol: false, checkIn: false },
   nextId: 7,
 };
 
@@ -80,7 +80,7 @@ export const carbCyclingPlan: Plan = {
     { name: 'Omega-3', dose: '2 capsules', timing: 'with lunch' },
   ],
   notes: 'Low-carb days are your lighter days. Keep veggies generous.',
-  features: { water: true, waterGoal: 10, alcohol: true, checkIn: true },
+  features: { water: true, waterGoal: 80, alcohol: true, checkIn: true },
   nextId: 13,
 };
 
@@ -150,7 +150,7 @@ function buildFourWeek(): Plan {
     ],
     postWorkoutCarbs: { grams: 30, foods: '4 dates or 1 orange', note: 'Within 30 minutes after strength training.' },
     notes: 'Training days are Mon, Tue, Thu, Fri. If your training days move, swap the day plans to match and tell Cristie at your next visit.',
-    features: { water: true, waterGoal: 10, alcohol: true, checkIn: true },
+    features: { water: true, waterGoal: 80, alcohol: true, checkIn: true },
     nextId: id,
   };
 }

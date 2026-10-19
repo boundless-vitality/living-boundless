@@ -1,9 +1,9 @@
 // App state: plans on this phone, meal logs, and the patient's (optional) first name.
-import { decideImport, decodePlanLink, importMessage, loggedDays, todayLocal, type DateStr, type DayEntry, type ImportDecision } from '@lb/shared';
+import { WATER_PRESETS, dayLevels, decideImport, decodePlanLink, importMessage, loggedDays, todayLocal, type DateStr, type DayEntry, type DayLevel, type ImportDecision, type WaterUnit } from '@lb/shared';
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  activatePlan, allEntries, deleteLog, getEntry, getSetting, loadPlans, logsForDate, mealLogDates, saveEntry, saveLog, setSetting, type MealLog, type StoredPlan,
+  activatePlan, allEntries, deleteLog, getEntry, getSetting, loadPlans, logsForDate, mealLogDates, mealLogKeys, saveEntry, saveLog, setSetting, type MealLog, type StoredPlan,
 } from './db';
 import { clearAll, loadDemo } from './demo';
 import { DEFAULT_REMINDERS, rescheduleReminders, type ReminderSettings } from './reminders';
@@ -43,8 +43,14 @@ interface Store {
   updateEntry: (date: DateStr, fn: (e: DayEntry) => DayEntry) => Promise<void>;
   /** Dates with anything logged (for the streak and weekly view). */
   logged: Set<DateStr>;
+  /** full = every meal logged that day; partial = some. */
+  levels: Map<DateStr, DayLevel>;
   disclaimerAck: boolean;
   ackDisclaimer: () => Promise<void>;
+  waterUnit: WaterUnit;
+  customWaterUnits: WaterUnit[];
+  setWaterUnit: (u: WaterUnit) => Promise<void>;
+  addCustomWaterUnit: (u: WaterUnit) => Promise<void>;
   reminders: ReminderSettings;
   setReminders: (r: ReminderSettings) => Promise<void>;
   /** Testing builds only. */
@@ -64,11 +70,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [flash, setFlash] = useState<{ title: string; body: string }>();
   const [entries, setEntries] = useState<Record<DateStr, DayEntry | undefined>>({});
   const [logged, setLogged] = useState<Set<DateStr>>(new Set());
+  const [levels, setLevels] = useState<Map<DateStr, DayLevel>>(new Map());
   const [disclaimerAck, setDisclaimerAck] = useState(false);
+  const [waterUnit, setWaterUnitState] = useState<WaterUnit>(WATER_PRESETS[0]);
+  const [customWaterUnits, setCustomWaterUnits] = useState<WaterUnit[]>([]);
   const [reminders, setRemindersState] = useState<ReminderSettings>(DEFAULT_REMINDERS);
 
   const refreshLogged = useCallback(async () => {
-    setLogged(loggedDays(await mealLogDates(db), await allEntries(db)));
+    const entries = await allEntries(db);
+    setLogged(loggedDays(await mealLogDates(db), entries));
+    setLevels(dayLevels(await loadPlans(db), await mealLogKeys(db), entries));
   }, [db]);
 
   useEffect(() => {
@@ -78,6 +89,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDisclaimerAck((await getSetting(db, 'disclaimerAck')) === '1');
       const r = await getSetting(db, 'reminders');
       if (r) setRemindersState(JSON.parse(r));
+      const wu = await getSetting(db, 'waterUnit');
+      if (wu) setWaterUnitState(JSON.parse(wu));
+      const wc = await getSetting(db, 'waterCustom');
+      if (wc) setCustomWaterUnits(JSON.parse(wc));
       await refreshLogged();
       setReady(true);
     })();
@@ -92,6 +107,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.remove();
   }, [ready, plans, reminders]);
+
+  const setWaterUnit = async (u: WaterUnit) => {
+    await setSetting(db, 'waterUnit', JSON.stringify(u));
+    setWaterUnitState(u);
+  };
+
+  const addCustomWaterUnit = async (u: WaterUnit) => {
+    const next = [...customWaterUnits.filter((x) => x.oz !== u.oz), u];
+    await setSetting(db, 'waterCustom', JSON.stringify(next));
+    setCustomWaterUnits(next);
+    await setWaterUnit(u);
+  };
 
   const setReminders = useCallback(
     async (r: ReminderSettings) => {
@@ -122,10 +149,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (changed) {
         await activatePlan(db, decoded.plan, todayLocal());
         setPlans(await loadPlans(db));
+        await refreshLogged();
       }
       return { ok: true, changed, decision, ...msg };
     },
-    [db, active],
+    [db, active, refreshLogged],
   );
 
   const loadLogs = useCallback(
@@ -239,8 +267,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadEntry,
     updateEntry,
     logged,
+    levels,
     disclaimerAck,
     ackDisclaimer,
+    waterUnit,
+    customWaterUnits,
+    setWaterUnit,
+    addCustomWaterUnit,
     reminders,
     setReminders,
     loadDemoData,

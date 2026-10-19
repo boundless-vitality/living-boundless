@@ -1,6 +1,8 @@
 // What a patient can track. Lives only on their phone; shared here so the
 // report and streak logic can be tested.
 import { addDays, daysBetween, weekdayIndex } from './dates';
+import { planForDate, type PlanRecord } from './importing';
+import { resolveDay } from './schedule';
 import type { DateStr } from './types';
 
 export type MealStatus = 'followed' | 'substituted' | 'skipped';
@@ -48,9 +50,40 @@ export interface DayEntry {
   supplements?: string[];
   postWorkoutCarbs?: boolean;
   trained?: boolean;
-  water?: number;
+  /** Each amount of water logged, in fluid ounces, in the order logged. */
+  waterOz?: number[];
   /** undefined = not answered; drank false = "no". */
   alcohol?: { drank: boolean; drinks?: Partial<Record<AlcoholType, number>> };
+}
+
+/** Water is always stored in ounces, so switching units mid-day never changes what was logged. */
+export interface WaterUnit {
+  label: string;
+  oz: number;
+}
+
+export const WATER_PRESETS: WaterUnit[] = [
+  { label: 'Glass', oz: 8 },
+  { label: 'Bottle', oz: 16.9 },
+  { label: 'Large bottle', oz: 24 },
+  { label: 'Tumbler', oz: 32 },
+];
+
+export function waterTotal(e: DayEntry | undefined): number {
+  return Math.round((e?.waterOz ?? []).reduce((a, b) => a + b, 0) * 10) / 10;
+}
+
+/** 40 → "40 oz", 16.9 → "16.9 oz" */
+export function formatOz(oz: number): string {
+  return `${Math.round(oz * 10) / 10} oz`;
+}
+
+/** "About 2 more bottles to reach 64 oz" — or undefined once the goal is met or there is no goal. */
+export function waterToGo(totalOz: number, goalOz: number | undefined, unit: WaterUnit): string | undefined {
+  if (!goalOz || totalOz >= goalOz) return undefined;
+  const n = Math.ceil((goalOz - totalOz) / unit.oz);
+  const name = unit.label.toLowerCase();
+  return `About ${n} more ${n === 1 ? name : name.endsWith('s') ? `${name}es` : `${name}s`} (${formatOz(unit.oz)}) to reach ${formatOz(goalOz)}`;
 }
 
 export const CHECKIN_GROUPS: { key: string; label: string; tags: string[] }[] = [
@@ -77,7 +110,7 @@ export function hasAnything(e: DayEntry | undefined): boolean {
     e.supplements?.length ||
     e.postWorkoutCarbs ||
     e.trained ||
-    e.water ||
+    e.waterOz?.length ||
     e.alcohol
   );
 }
@@ -126,4 +159,29 @@ export function weekMessage(logged: number, elapsed: number): string {
 export function datesInRange(from: DateStr, to: DateStr): DateStr[] {
   const n = daysBetween(from, to);
   return Array.from({ length: Math.max(0, n + 1) }, (_, i) => addDays(from, i));
+}
+
+export type DayLevel = 'full' | 'partial';
+
+/**
+ * How complete each day is, for the week dots: "full" when every meal that day
+ * has a log (any status), "partial" when something was logged but not all meals.
+ */
+export function dayLevels(records: PlanRecord[], logs: Pick<MealLogData, 'date' | 'planId' | 'mealId'>[], entries: DayEntry[]): Map<DateStr, DayLevel> {
+  const byDate = new Map<DateStr, Set<string>>();
+  for (const l of logs) {
+    const set = byDate.get(l.date) ?? new Set<string>();
+    set.add(`${l.planId}:${l.mealId}`);
+    byDate.set(l.date, set);
+  }
+  const out = new Map<DateStr, DayLevel>();
+  for (const [date, keys] of byDate) {
+    const rec = planForDate(records, date);
+    const day = rec ? resolveDay(rec.plan, date) : undefined;
+    const meals = day?.status === 'active' ? day.dayPlan.meals : [];
+    const all = meals.length > 0 && meals.every((m) => keys.has(`${rec!.plan.id}:${m.id}`));
+    out.set(date, all ? 'full' : 'partial');
+  }
+  for (const e of entries) if (hasAnything(e) && !out.has(e.date)) out.set(e.date, 'partial');
+  return out;
 }
