@@ -4,7 +4,7 @@ import { WATER_PRESETS, formatOz, waterToGo, waterTotal, type DayEntry, type Wat
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useStore } from '@/lib/store';
-import { Body, Button, Card, Chip, Label, LinkText } from './components';
+import { Body, Button, Card, Chip, IconLabel, LinkText } from './components';
 import { colors, fonts, radius } from './theme';
 
 export function WaterCard({ entry, goalOz, onChange }: { entry: DayEntry; goalOz?: number; onChange: (oz: number[]) => void }) {
@@ -30,7 +30,7 @@ export function WaterCard({ entry, goalOz, onChange }: { entry: DayEntry; goalOz
 
   return (
     <Card style={{ gap: 12 }}>
-      <Label>Water</Label>
+      <IconLabel icon="water-outline">Water</IconLabel>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
         <Text style={s.big}>{formatOz(total)}</Text>
         {goalOz ? <Body muted>of {formatOz(goalOz)}</Body> : null}

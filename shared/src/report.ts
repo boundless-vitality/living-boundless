@@ -1,10 +1,12 @@
-// "Share my report": every day in a range, in plain words. The app turns this into a PDF.
-import { formatLong, formatMedium, formatTime, parseTime } from './dates';
+// "Share my report": every day in a range, in plain words, plus summaries that make
+// patterns easy to spot (per-supplement consistency, a day-by-day grid). The app
+// turns this into a PDF.
+import { sortMeals } from './builders';
+import { formatLong, formatMedium, formatTime, parseTime, weekdayIndex } from './dates';
 import { planForDate, type PlanRecord } from './importing';
 import { hasSchedule, resolveDay } from './schedule';
-import { sortMeals } from './builders';
 import { ALCOHOL_TYPES, datesInRange, formatOz, hasAnything, waterTotal, type DayEntry, type MealLogData } from './tracking';
-import type { DateStr } from './types';
+import type { DateStr, Plan } from './types';
 
 export interface ReportMeal {
   label: string;
@@ -22,7 +24,29 @@ export interface ReportDay {
   /** Before the plan started on that date. */
   beforePlan: boolean;
   meals: ReportMeal[];
+  /** Supplements in the plan that day: taken or not. Empty if nothing was logged that day. */
+  supplements: { name: string; taken: boolean }[];
   lines: { label: string; value: string }[];
+}
+
+export interface SupplementStat {
+  name: string;
+  detail?: string;
+  taken: number;
+  /** Days the supplement was in the plan and the patient logged something that day. */
+  of: number;
+  /** Days in the plan, logged or not. */
+  planDays: number;
+  /** e.g. "often missed on Sundays" */
+  pattern?: string;
+}
+
+/** One cell in the day-by-day grid. */
+export type GridCell = 'full' | 'partial' | 'yes' | 'no' | 'drank' | 'dry' | 'none' | 'na';
+
+export interface ReportGrid {
+  columns: { date: DateStr; day: string; weekday: string }[];
+  rows: { label: string; cells: GridCell[] }[];
 }
 
 export interface ReportModel {
@@ -31,12 +55,17 @@ export interface ReportModel {
   rangeLabel: string;
   planLine: string;
   summary: { daysLogged: number; days: number; followed: number; substituted: number; skipped: number };
-  /** Totals beyond meals: water, alcohol, supplements, workouts, check-ins. */
+  /** Totals beyond meals: water, alcohol, workouts, check-ins. */
   extras: { label: string; value: string }[];
+  supplements: SupplementStat[];
+  /** Only for ranges up to 31 days (wider would not fit on the page). */
+  grid?: ReportGrid;
   days: ReportDay[];
 }
 
 const STATUS = { followed: 'Followed', substituted: 'Substituted', skipped: 'Skipped' } as const;
+const WEEKDAY_NAMES = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
+const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function timeText(log: MealLogData): string | undefined {
   if (log.status === 'skipped') return undefined;
@@ -46,6 +75,8 @@ function timeText(log: MealLogData): string | undefined {
   }
   return log.whenKind === 'earlier' ? 'earlier in the day' : undefined;
 }
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function buildReport(input: {
   records: PlanRecord[];
@@ -62,6 +93,11 @@ export function buildReport(input: {
   const entryByDate = new Map(entries.map((e) => [e.date, e]));
   const summary = { daysLogged: 0, days: 0, followed: 0, substituted: 0, skipped: 0 };
 
+  // Per-supplement tallies, keyed by name.
+  const supp = new Map<string, SupplementStat & { missedByWeekday: number[] }>();
+  // Per-day facts for the grid.
+  const gridFacts: { date: DateStr; level: 'full' | 'partial' | 'none' | 'na'; plan?: Plan; entry?: DayEntry; active: boolean }[] = [];
+
   const days: ReportDay[] = datesInRange(from, to).map((date) => {
     summary.days++;
     const rec = planForDate(records, date);
@@ -70,15 +106,20 @@ export function buildReport(input: {
     const meals: ReportMeal[] = [];
     let dayPlanName: string | undefined;
     let beforePlan = false;
+    let active = false;
+    let allMealsLogged = false;
 
     const used = new Set<MealLogData>();
     if (rec) {
       const r = resolveDay(rec.plan, date);
       if (r.status === 'active') {
+        active = true;
         if (hasSchedule(rec.plan)) dayPlanName = r.dayPlan.name;
+        allMealsLogged = r.dayPlan.meals.length > 0;
         for (const m of sortMeals(r.dayPlan.meals)) {
           const log = dayLogs.find((l) => l.planId === rec.plan.id && l.mealId === m.id);
           if (!log) {
+            allMealsLogged = false;
             meals.push({ label: m.label, status: 'Not logged' });
             continue;
           }
@@ -105,14 +146,34 @@ export function buildReport(input: {
     }
     for (const l of used) summary[l.status]++;
 
+    const empty = dayLogs.length === 0 && !hasAnything(entry);
+    if (!empty) summary.daysLogged++;
+
+    // Supplements: counted only on days the plan includes them. A day where nothing
+    // at all was logged isn't counted as "missed" (we just don't know).
+    const takenSet = new Set(entry?.supplements ?? []);
+    const supplements: ReportDay['supplements'] = [];
+    if (active && rec) {
+      for (const s of rec.plan.supplements) {
+        const stat =
+          supp.get(s.name) ??
+          { name: s.name, detail: [s.dose, s.timing].filter(Boolean).join(', ') || undefined, taken: 0, of: 0, planDays: 0, missedByWeekday: [0, 0, 0, 0, 0, 0, 0] };
+        stat.planDays++;
+        if (!empty) {
+          stat.of++;
+          const took = takenSet.has(s.name);
+          if (took) stat.taken++;
+          else stat.missedByWeekday[weekdayIndex(date)]++;
+          supplements.push({ name: s.name, taken: took });
+        }
+        supp.set(s.name, stat);
+      }
+    }
+
     const lines: { label: string; value: string }[] = [];
     if (entry) {
-      if (entry.supplements?.length) {
-        const total = rec?.plan.supplements.length;
-        lines.push({ label: 'Supplements', value: `${total ? `${entry.supplements.length} of ${total}: ` : ''}${entry.supplements.join(', ')}` });
-      }
-      if (entry.postWorkoutCarbs) lines.push({ label: 'Post-workout carbs', value: 'Taken' });
-      if (entry.trained) lines.push({ label: 'Workout', value: 'Trained today' });
+      if (entry.trained) lines.push({ label: 'Workout', value: entry.postWorkoutCarbs ? 'Trained · had post-workout carbs' : 'Trained' });
+      else if (entry.postWorkoutCarbs) lines.push({ label: 'Post-workout carbs', value: 'Taken' });
       if (entry.waterOz?.length) lines.push({ label: 'Water', value: formatOz(waterTotal(entry)) });
       if (entry.alcohol) {
         if (!entry.alcohol.drank) lines.push({ label: 'Alcohol', value: 'None' });
@@ -132,9 +193,17 @@ export function buildReport(input: {
       }
     }
 
-    const empty = dayLogs.length === 0 && !hasAnything(entry);
-    if (!empty) summary.daysLogged++;
-    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, lines };
+    gridFacts.push({ date, level: !active ? 'na' : empty ? 'none' : allMealsLogged ? 'full' : 'partial', plan: rec?.plan, entry, active });
+    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, supplements, lines };
+  });
+
+  // Supplement consistency, with a gentle pattern note when misses cluster on one weekday.
+  const supplements: SupplementStat[] = [...supp.values()].map(({ missedByWeekday, ...s }) => {
+    const missed = s.of - s.taken;
+    const top = Math.max(...missedByWeekday);
+    const wd = missedByWeekday.indexOf(top);
+    const pattern = missed >= 2 && top >= 2 && top / missed >= 0.5 ? `often missed on ${WEEKDAY_NAMES[wd]}` : undefined;
+    return { ...s, pattern };
   });
 
   // Totals across the range.
@@ -143,30 +212,52 @@ export function buildReport(input: {
   const drinkDays = inRange.filter((e) => e.alcohol?.drank);
   const drinks = drinkDays.reduce((n, e) => n + Object.values(e.alcohol?.drinks ?? {}).reduce((a, b) => a + (b ?? 0), 0), 0);
   const noDrinkDays = inRange.filter((e) => e.alcohol && !e.alcohol.drank).length;
-  const suppDays = inRange.filter((e) => e.supplements?.length).length;
   const trainedDays = inRange.filter((e) => e.trained).length;
   const pwcDays = inRange.filter((e) => e.postWorkoutCarbs).length;
   const checkIns = inRange.filter((e) => e.checkIn && (e.checkIn.energy || e.checkIn.mood || e.checkIn.tags.length || e.checkIn.note));
-  const days_ = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
   const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : undefined);
   const energy = avg(checkIns.map((e) => e.checkIn!.energy).filter((x): x is number => !!x));
   const mood = avg(checkIns.map((e) => e.checkIn!.mood).filter((x): x is number => !!x));
   const extras: { label: string; value: string }[] = [];
-  if (waterDays.length) extras.push({ label: 'Water', value: `logged ${days_(waterDays.length)} · average ${formatOz(avg(waterDays.map(waterTotal))!)} on those days` });
-  if (drinkDays.length || noDrinkDays) extras.push({ label: 'Alcohol', value: `${days_(drinkDays.length)} with drinks (${drinks} total) · ${days_(noDrinkDays)} with none` });
-  if (suppDays) extras.push({ label: 'Supplements', value: `taken on ${days_(suppDays)}` });
-  if (trainedDays) extras.push({ label: 'Workouts', value: `${days_(trainedDays)}${pwcDays ? ` · post-workout carbs on ${days_(pwcDays)}` : ''}` });
+  if (waterDays.length) extras.push({ label: 'Water', value: `logged ${plural(waterDays.length, 'day')} · average ${formatOz(avg(waterDays.map(waterTotal))!)} on those days` });
+  if (drinkDays.length || noDrinkDays) extras.push({ label: 'Alcohol', value: `${plural(drinkDays.length, 'day')} with drinks (${drinks} total) · ${plural(noDrinkDays, 'day')} with none` });
+  if (trainedDays) extras.push({ label: 'Workouts', value: `${plural(trainedDays, 'day')}${pwcDays ? ` · post-workout carbs on ${plural(pwcDays, 'day')}` : ''}` });
   if (checkIns.length)
-    extras.push({ label: 'Check-ins', value: [days_(checkIns.length), energy && `average energy ${energy}/5`, mood && `average mood ${mood}/5`].filter(Boolean).join(' · ') });
+    extras.push({ label: 'Check-ins', value: [plural(checkIns.length, 'day'), energy && `average energy ${energy}/5`, mood && `average mood ${mood}/5`].filter(Boolean).join(' · ') });
+
+  // Day-by-day grid (only rows that have something to show).
+  let grid: ReportGrid | undefined;
+  if (gridFacts.length <= 31) {
+    const columns = gridFacts.map((g) => ({ date: g.date, day: String(Number(g.date.slice(8))), weekday: WEEKDAY_LETTERS[weekdayIndex(g.date)] }));
+    const rows: ReportGrid['rows'] = [{ label: 'Meals', cells: gridFacts.map((g) => g.level) }];
+    for (const s of supplements) {
+      rows.push({
+        label: s.name,
+        cells: gridFacts.map((g) => {
+          if (!g.active || !g.plan?.supplements.some((x) => x.name === s.name)) return 'na';
+          if (g.level === 'none') return 'none';
+          return g.entry?.supplements?.includes(s.name) ? 'yes' : 'no';
+        }),
+      });
+    }
+    if (waterDays.length) rows.push({ label: 'Water', cells: gridFacts.map((g) => (g.entry?.waterOz?.length ? 'yes' : g.level === 'none' || g.level === 'na' ? 'none' : 'no')) });
+    if (trainedDays) rows.push({ label: 'Trained', cells: gridFacts.map((g) => (g.entry?.trained ? 'yes' : 'none')) });
+    if (drinkDays.length || noDrinkDays)
+      rows.push({ label: 'Alcohol', cells: gridFacts.map((g) => (g.entry?.alcohol?.drank ? 'drank' : g.entry?.alcohol ? 'dry' : 'none')) });
+    if (checkIns.length) rows.push({ label: 'Check-in', cells: gridFacts.map((g) => (checkIns.includes(g.entry!) ? 'yes' : 'none')) });
+    grid = { columns, rows };
+  }
 
   const latest = planForDate(records, to);
   return {
-    extras,
     title: 'my nutrition report',
     patientName: input.patientName,
     rangeLabel: `${formatMedium(from)} – ${formatMedium(to)}`,
     planLine: latest ? `${latest.plan.title} · v${latest.plan.version} · ${input.planCodeOf(latest.plan.id)}` : '',
     summary,
+    extras,
+    supplements,
+    grid,
     days,
   };
 }

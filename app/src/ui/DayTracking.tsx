@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useStore } from '@/lib/store';
-import { Body, Card, Chip, Label, Title } from './components';
+import { Body, Card, Chip, IconLabel, Title } from './components';
 import { colors, fonts } from './theme';
 import { WaterCard } from './WaterCard';
 
@@ -27,7 +27,7 @@ export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
 
       {plan.supplements.length > 0 && (
         <Card style={{ gap: 4 }}>
-          <Label>Supplements</Label>
+          <IconLabel icon="pill">Supplements</IconLabel>
           {plan.supplements.map((s) => (
             <CheckRow
               key={s.name}
@@ -48,6 +48,7 @@ export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
       )}
 
       <Card style={{ gap: 4 }}>
+        <IconLabel icon="dumbbell">Workout</IconLabel>
         <CheckRow label="I trained today" sub="Just a record. Your plan stays the same." checked={!!e.trained} onPress={() => set((x) => ({ ...x, trained: !x.trained }))} />
         {plan.postWorkoutCarbs && (
           <CheckRow
@@ -60,12 +61,12 @@ export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
       </Card>
 
       {plan.features.water && (
-        <WaterCard entry={e} goalOz={plan.features.waterGoal} onChange={(oz) => set((x) => ({ ...x, waterOz: oz }))} />
+        <WaterCard entry={e} goalOz={plan.features.waterGoal && plan.features.waterGoal >= 8 ? plan.features.waterGoal : undefined} onChange={(oz) => set((x) => ({ ...x, waterOz: oz }))} />
       )}
 
       {plan.features.alcohol && (
         <Card style={{ gap: 10 }}>
-          <Label>Did you drink today?</Label>
+          <IconLabel icon="glass-wine">Did you drink today?</IconLabel>
           <View style={st.wrap}>
             <Chip label="No" selected={e.alcohol?.drank === false} onPress={() => set((x) => ({ ...x, alcohol: x.alcohol?.drank === false ? undefined : { drank: false } }))} />
             <Chip label="Yes" selected={!!e.alcohol?.drank} onPress={() => set((x) => ({ ...x, alcohol: x.alcohol?.drank ? undefined : { drank: true, drinks: {} } }))} />
@@ -100,7 +101,7 @@ export function DayTracking({ plan, date }: { plan: Plan; date: DateStr }) {
       {plan.features.checkIn && (
         <Pressable onPress={() => router.push({ pathname: '/checkin', params: { date } })} accessibilityRole="button">
           <Card style={{ gap: 4, borderLeftWidth: 4, borderLeftColor: colors.sage }}>
-            <Label>Check-in</Label>
+            <IconLabel icon="emoticon-outline">How are you feeling?</IconLabel>
             {c && (c.energy || c.mood || c.tags.length || c.note) ? (
               <>
                 <Body>

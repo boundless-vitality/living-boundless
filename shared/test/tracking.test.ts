@@ -123,3 +123,42 @@ describe('dayLevels (week dots)', () => {
     expect(levels.get('2026-11-12')).toBeUndefined();
   });
 });
+
+describe('report supplements', () => {
+  const records: PlanRecord[] = [{ plan: carbCyclingPlan, activatedOn: '2026-11-01', activatedAt: '2026-11-01T10:00:00Z' }];
+  // Mon Nov 2 – Sun Nov 15. Omega-3 every logged day; magnesium skipped on both Sundays and one Wednesday.
+  const entries: DayEntry[] = [];
+  for (let i = 0; i < 14; i++) {
+    const date = addDays('2026-11-03', i);
+    if (date === '2026-11-10') continue; // nothing logged this day
+    const sunday = date === '2026-11-08' || date === '2026-11-15';
+    const takeMag = !sunday && date !== '2026-11-04';
+    entries.push({ date, supplements: ['Omega-3', ...(takeMag ? ['Magnesium glycinate'] : [])] });
+  }
+  const r = buildReport({ records, logs: [], entries, from: '2026-11-03', to: '2026-11-16', planCodeOf: () => 'X' });
+
+  it('breaks consistency down by supplement, not counting days with nothing logged as missed', () => {
+    const mag = r.supplements.find((s) => s.name === 'Magnesium glycinate')!;
+    const omega = r.supplements.find((s) => s.name === 'Omega-3')!;
+    expect(omega).toMatchObject({ taken: 13, of: 13, planDays: 14 });
+    expect(mag).toMatchObject({ taken: 10, of: 13, detail: '400 mg, before bed' });
+  });
+
+  it('spots a weekday pattern', () => {
+    expect(r.supplements.find((s) => s.name === 'Magnesium glycinate')!.pattern).toBe('often missed on Sundays');
+    expect(r.supplements.find((s) => s.name === 'Omega-3')!.pattern).toBeUndefined();
+  });
+
+  it('shows took/missed on each day and builds a day-by-day grid', () => {
+    const sun = r.days.find((d) => d.date === '2026-11-08')!;
+    expect(sun.supplements).toEqual([
+      { name: 'Magnesium glycinate', taken: false },
+      { name: 'Omega-3', taken: true },
+    ]);
+    expect(r.days.find((d) => d.date === '2026-11-10')!.supplements).toEqual([]);
+    const magRow = r.grid!.rows.find((x) => x.label === 'Magnesium glycinate')!;
+    expect(magRow.cells[5]).toBe('no'); // Sunday Nov 8
+    expect(magRow.cells[7]).toBe('none'); // Nov 10, nothing logged
+    expect(r.grid!.columns[0]).toEqual({ date: '2026-11-03', day: '3', weekday: 'T' });
+  });
+});

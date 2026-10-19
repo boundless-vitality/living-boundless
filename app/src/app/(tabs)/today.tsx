@@ -9,6 +9,7 @@ import { STATUS_LABEL, whenText } from '@/lib/logText';
 import { useStore } from '@/lib/store';
 import { Body, Card, Label, LinkText, Screen, Title, TopBar } from '@/ui/components';
 import { DayTracking } from '@/ui/DayTracking';
+import { DisclaimerGate } from '@/ui/Disclaimer';
 import { MealContents, MealHeader } from '@/ui/MealContents';
 import { colors, fonts, radius } from '@/ui/theme';
 
@@ -67,6 +68,7 @@ export default function Today() {
         ) : null
       }
     >
+      <DisclaimerGate />
       <TopBar
         left={<Body muted small>{name ? `hi, ${name}` : ' '}</Body>}
         right={
@@ -105,7 +107,7 @@ export default function Today() {
               {weekMessage(w.logged, w.elapsed)}
               {streak >= 2 ? `  ${streak} days in a row.` : ''}
             </Text>
-            <Text style={s.weekLegend}>Darker: every meal logged · Lighter: part of the day</Text>
+            <Text style={s.weekLegend}>Dark: every meal logged · Light: part of the day · Empty: nothing logged</Text>
           </View>
         );
       })()}

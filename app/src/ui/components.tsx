@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import type { ComponentProps, ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radius, space } from './theme';
@@ -41,6 +42,20 @@ export function Body({ children, style, muted, small, semi }: { children: ReactN
 
 export function Label({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
   return <Text style={[styles.label, style]}>{children.toUpperCase()}</Text>;
+}
+
+export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Small green icon + uppercase label, for section headers. */
+export function IconLabel({ icon, children }: { icon: IconName; children: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={styles.iconBubble}>
+        <MaterialCommunityIcons name={icon} size={17} color={colors.moss} />
+      </View>
+      <Text style={styles.label}>{children.toUpperCase()}</Text>
+    </View>
+  );
 }
 
 type BtnKind = 'primary' | 'secondary' | 'ghost';
@@ -96,6 +111,7 @@ export const styles = StyleSheet.create({
   title: { fontFamily: fonts.head, color: colors.offBlack, letterSpacing: -0.3 },
   body: { fontFamily: fonts.body, fontSize: 17, lineHeight: 24, color: colors.offBlack },
   label: { fontFamily: fonts.semi, fontSize: 12, letterSpacing: 1.4, color: colors.charcoal },
+  iconBubble: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.cream, borderWidth: 1, borderColor: colors.beige, alignItems: 'center', justifyContent: 'center' },
   btn: { borderRadius: radius.md, paddingVertical: 15, paddingHorizontal: space.lg, alignItems: 'center', justifyContent: 'center' },
   btn_primary: { backgroundColor: colors.offBlack },
   btn_secondary: { backgroundColor: colors.cream, borderWidth: 1, borderColor: colors.sand },
