@@ -68,6 +68,13 @@ export default function Today() {
     >
       <TopBar
         left={<Body muted small>{name ? `hi, ${name}` : ' '}</Body>}
+        right={
+          date !== today ? (
+            <Pressable onPress={() => setDate(today)} hitSlop={10} accessibilityRole="button" style={s.todayBtn}>
+              <Text style={s.todayBtnText}>{date < today ? 'Back to today ›' : '‹ Back to today'}</Text>
+            </Pressable>
+          ) : null
+        }
       />
 
       {flash && (
@@ -178,6 +185,8 @@ function Arrow({ dir, disabled, onPress, label }: { dir: string; disabled: boole
 }
 
 const s = StyleSheet.create({
+  todayBtn: { backgroundColor: colors.offBlack, borderRadius: radius.pill, paddingVertical: 7, paddingHorizontal: 14 },
+  todayBtnText: { fontFamily: fonts.semi, fontSize: 14, color: colors.cream },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   arrow: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cream, borderWidth: 1, borderColor: colors.beige },
   arrowText: { fontFamily: fonts.semi, fontSize: 26, color: colors.offBlack, marginTop: -3 },
