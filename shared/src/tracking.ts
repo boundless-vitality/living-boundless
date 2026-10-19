@@ -156,11 +156,16 @@ export function weekMessage(logged: number, elapsed: number): string {
   return `${logged} of ${elapsed} days logged this week. Nice work showing up.`;
 }
 
-/** One encouraging line about showing up. Never mentions missed days. */
-export function streakMessage(streak: number, loggedToday: boolean): string {
+/**
+ * One encouraging line about showing up. Never mentions missed days.
+ * With no streak, it leans on what *was* logged this week instead.
+ */
+export function streakMessage(streak: number, loggedToday: boolean, loggedThisWeek = 0): string {
   if (streak >= 2) return `You're showing up: ${streak} days in a row.`;
+  if (loggedThisWeek >= 2) return `${loggedThisWeek} days logged this week. Every one counts.`;
   if (streak === 1) return loggedToday ? 'You showed up today. Nice.' : 'You showed up yesterday. Keep it going today.';
-  return 'Log anything today to start a streak.';
+  if (loggedThisWeek === 1) return '1 day logged this week. Every one counts.';
+  return 'New day, fresh start. Log anything to get going.';
 }
 
 export function datesInRange(from: DateStr, to: DateStr): DateStr[] {

@@ -167,5 +167,7 @@ describe('streakMessage', () => {
     expect(streakMessage(4, true)).toBe("You're showing up: 4 days in a row.");
     expect(streakMessage(1, true)).toBe('You showed up today. Nice.');
     expect(streakMessage(0, false)).not.toMatch(/miss|fail|behind/i);
+    expect(streakMessage(0, false, 3)).toBe('3 days logged this week. Every one counts.');
+    expect(streakMessage(0, false, 0)).toBe('New day, fresh start. Log anything to get going.');
   });
 });

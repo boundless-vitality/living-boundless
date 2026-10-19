@@ -11,19 +11,24 @@ import { useStore } from '@/lib/store';
 import { Body, Card, Chip, IconLabel, Screen, Title } from '@/ui/components';
 import { colors, fonts, radius } from '@/ui/theme';
 
-type Range = 7 | 30;
+type Range = 'week' | 30;
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const Y_AXIS = 12;
 
 export default function History() {
   const router = useRouter();
   const db = useSQLiteContext();
   const { plans, name, logged } = useStore();
-  const [range, setRange] = useState<Range>(7);
+  const [range, setRange] = useState<Range>('week');
+  const [open, setOpen] = useState<'substituted' | 'skipped' | null>(null);
   const [report, setReport] = useState<ReportModel>();
   const today = todayLocal();
   const first = earliestDate(plans) ?? today;
+  // "This week" always runs Monday–Sunday; future days show as upcoming.
+  const monday = addDays(today, -weekdayIndex(today));
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const from = (() => {
-    const f = addDays(today, -(range - 1));
+    const f = range === 'week' ? monday : addDays(today, -29);
     return f < first ? first : f;
   })();
 
@@ -64,12 +69,13 @@ export default function History() {
   const mealsLogged = s ? s.followed + s.substituted + s.skipped : 0;
   const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '–');
   const mealsRow = report?.grid?.rows[0];
+  const chartDates = range === 'week' ? weekDates : (report?.days.map((d) => d.date) ?? []);
 
   return (
     <Screen>
       <Title>history</Title>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Chip label="Last 7 days" selected={range === 7} onPress={() => setRange(7)} />
+        <Chip label="This week" selected={range === 'week'} onPress={() => setRange('week')} />
         <Chip label="Last 30 days" selected={range === 30} onPress={() => setRange(30)} />
       </View>
 
@@ -79,8 +85,8 @@ export default function History() {
           <Card style={{ gap: 10 }}>
             <IconLabel icon="calendar-month-outline">Days</IconLabel>
             <Calendar
-              dates={report.grid?.columns.map((c) => c.date) ?? []}
-              levels={mealsRow?.cells ?? []}
+              dates={range === 'week' ? weekDates : (report.grid?.columns.map((c) => c.date) ?? [])}
+              levels={range === 'week' ? weekDates.map((d) => mealsRow?.cells[report.grid!.columns.findIndex((c) => c.date === d)] ?? 'none') : (mealsRow?.cells ?? [])}
               today={today}
               onPress={openDay}
             />
@@ -91,9 +97,10 @@ export default function History() {
           <View style={st.tiles}>
             <Tile big={`${s.daysLogged}`} small={`of ${s.days} days`} label="logged" />
             <Tile big={pct(s.followed, mealsLogged)} label="meals followed" />
-            <Tile big={`${s.substituted}`} label="substituted" />
-            <Tile big={`${s.skipped}`} label="skipped" />
+            <Tile big={`${s.substituted}`} label="substituted" hint={s.substituted ? 'tap to see' : undefined} selected={open === 'substituted'} onPress={s.substituted ? () => setOpen(open === 'substituted' ? null : 'substituted') : undefined} />
+            <Tile big={`${s.skipped}`} label="skipped" hint={s.skipped ? 'tap to see' : undefined} selected={open === 'skipped'} onPress={s.skipped ? () => setOpen(open === 'skipped' ? null : 'skipped') : undefined} />
           </View>
+          {open && <MealBreakdown report={report} status={open === 'substituted' ? 'Substituted' : 'Skipped'} onOpenDay={openDay} />}
 
           {/* Supplements */}
           {report.supplements.length > 0 && (
@@ -118,8 +125,8 @@ export default function History() {
           {report.days.some((d) => d.energy || d.mood) && (
             <Card style={{ gap: 12 }}>
               <IconLabel icon="emoticon-outline">Energy & mood</IconLabel>
-              <Bars label="Energy (1 low, 5 great)" icon="lightning-bolt-outline" values={report.days.map((d) => d.energy)} dates={report.days.map((d) => d.date)} />
-              <Bars label="Mood (1 low, 5 great)" icon="emoticon-happy-outline" values={report.days.map((d) => d.mood)} dates={report.days.map((d) => d.date)} />
+              <Bars label="Energy (1 low, 5 great)" icon="lightning-bolt-outline" values={chartDates.map((d) => report.days.find((x) => x.date === d)?.energy)} dates={chartDates} />
+              <Bars label="Mood (1 low, 5 great)" icon="emoticon-happy-outline" values={chartDates.map((d) => report.days.find((x) => x.date === d)?.mood)} dates={chartDates} />
             </Card>
           )}
 
@@ -141,15 +148,49 @@ export default function History() {
   );
 }
 
-function Tile({ big, small, label }: { big: string; small?: string; label: string }) {
+function Tile({ big, small, label, hint, selected, onPress }: { big: string; small?: string; label: string; hint?: string; selected?: boolean; onPress?: () => void }) {
   return (
-    <View style={st.tile}>
+    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined} style={[st.tile, selected && st.tileOn]}>
       <Text style={st.tileBig}>
         {big}
         {small ? <Text style={st.tileSmall}>{` ${small}`}</Text> : null}
       </Text>
       <Text style={st.tileLabel}>{label}</Text>
-    </View>
+      {hint ? <Text style={st.tileHint}>{selected ? 'tap to hide' : hint}</Text> : null}
+    </Pressable>
+  );
+}
+
+/** What was substituted (and how often), or which meals were skipped most. */
+function MealBreakdown({ report, status, onOpenDay }: { report: ReportModel; status: 'Substituted' | 'Skipped'; onOpenDay: (d: DateStr) => void }) {
+  const items = report.days.flatMap((d) => d.meals.filter((m) => m.status === status).map((m) => ({ date: d.date, dateLabel: d.dateLabel, meal: m.label, note: m.detail })));
+  const byMeal = new Map<string, number>();
+  for (const i of items) byMeal.set(i.meal, (byMeal.get(i.meal) ?? 0) + 1);
+  const top = [...byMeal.entries()].sort((a, b) => b[1] - a[1]);
+  const notes = new Map<string, number>();
+  if (status === 'Substituted') for (const i of items) if (i.note) {
+    const k = i.note.replace(/[“”"]/g, '').trim().toLowerCase();
+    notes.set(k, (notes.get(k) ?? 0) + 1);
+  }
+  const repeated = [...notes.entries()].filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]);
+  return (
+    <Card style={{ gap: 10 }}>
+      <IconLabel icon={status === 'Substituted' ? 'swap-horizontal' : 'debug-step-over'}>{status === 'Substituted' ? 'What you substituted' : 'Meals skipped'}</IconLabel>
+      <Body muted small>
+        {status === 'Substituted' ? 'Most often: ' : 'Most often skipped: '}
+        {top.slice(0, 3).map(([m, n]) => `${m} (${n})`).join(', ')}
+      </Body>
+      {repeated.length > 0 && <Body small>Came up more than once: {repeated.slice(0, 3).map(([k, n]) => `${k} (${n}×)`).join(', ')}</Body>}
+      {items.map((i, idx) => (
+        <Pressable key={idx} onPress={() => onOpenDay(i.date)} style={st.breakRow} accessibilityRole="button">
+          <View style={{ flex: 1 }}>
+            <Body semi small>{i.meal}</Body>
+            <Body muted small>{i.dateLabel}</Body>
+          </View>
+          {i.note ? <Body small style={{ flex: 1.3, textAlign: 'right' }}>{i.note}</Body> : null}
+        </Pressable>
+      ))}
+    </Card>
   );
 }
 
@@ -174,6 +215,15 @@ function Calendar({ dates, levels, today, onPress }: { dates: DateStr[]; levels:
           {w.map((d, di) => {
             if (!d) return <View key={di} style={st.calCell} />;
             const level = levels[dates.indexOf(d)];
+            if (d > today) {
+              return (
+                <View key={d} style={st.calCell}>
+                  <View style={[st.calDot, { opacity: 0.35 }]}>
+                    <Text style={st.calNum}>{Number(d.slice(8))}</Text>
+                  </View>
+                </View>
+              );
+            }
             return (
               <Pressable key={d} onPress={() => onPress(d)} style={st.calCell} accessibilityRole="button" accessibilityLabel={`${d}, ${level === 'full' ? 'every meal logged' : level === 'partial' ? 'partly logged' : 'nothing logged'}`}>
                 <View style={[st.calDot, level === 'full' && st.full, level === 'partial' && st.partial, d === today && st.todayRing]}>
@@ -207,11 +257,11 @@ function Bars({ label, icon, values, dates }: { label: string; icon: 'lightning-
   const short = dates.length <= 7;
   return (
     <View style={{ gap: 4 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: Y_AXIS + 8 }}>
         <MaterialCommunityIcons name={icon} size={16} color={colors.moss} />
         <Body small semi>{label}</Body>
       </View>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={st.yAxis}>
           {[5, 4, 3, 2, 1].map((n) => (
             <Text key={n} style={st.yLabel}>{n}</Text>
@@ -225,7 +275,7 @@ function Bars({ label, icon, values, dates }: { label: string; icon: 'lightning-
             <View style={st.bars}>
               {values.map((v, i) => (
                 <View key={i} style={st.barSlot}>
-                  {v ? <View style={[st.bar, { height: `${((v - 1) / (max - 1)) * 100}%`, minHeight: 4 }]} /> : null}
+                  {v ? <View style={[st.bar, { height: `${((v - 1) / (max - 1)) * 100}%`, minHeight: 4, width: short ? 14 : 6 }]} /> : null}
                 </View>
               ))}
             </View>
@@ -250,6 +300,9 @@ const st = StyleSheet.create({
   tile: { flexBasis: '47%', flexGrow: 1, backgroundColor: colors.cream, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.beige },
   tileBig: { fontFamily: fonts.head, fontSize: 26, color: colors.offBlack },
   tileSmall: { fontFamily: fonts.semi, fontSize: 14, color: colors.charcoal },
+  tileOn: { borderColor: colors.offBlack, borderWidth: 1.5 },
+  tileHint: { fontFamily: fonts.body, fontSize: 12, color: colors.bronze, marginTop: 2 },
+  breakRow: { flexDirection: 'row', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.beige },
   tileLabel: { fontFamily: fonts.semi, fontSize: 12, letterSpacing: 0.8, color: colors.charcoal, textTransform: 'uppercase' },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.beige, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4, backgroundColor: colors.moss },
@@ -265,12 +318,12 @@ const st = StyleSheet.create({
   legend: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 4 },
   legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: colors.sand, backgroundColor: colors.white },
   legendText: { fontFamily: fonts.body, fontSize: 12, color: colors.charcoal },
-  yAxis: { height: 80, justifyContent: 'space-between', marginTop: -6, marginBottom: -6 },
+  yAxis: { width: Y_AXIS, height: 80, justifyContent: 'space-between', marginTop: -6, marginBottom: -6 },
   yLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.charcoal, lineHeight: 12 },
   plot: { height: 80, position: 'relative' },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: colors.beige },
   bars: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
-  barSlot: { flex: 1, height: '100%', justifyContent: 'flex-end' },
+  barSlot: { flex: 1, height: '100%', justifyContent: 'flex-end', alignItems: 'center' },
   bar: { backgroundColor: colors.moss, borderRadius: 3 },
   xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   xLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.charcoal, textAlign: 'center' },

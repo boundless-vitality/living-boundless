@@ -108,7 +108,7 @@ export default function Today() {
         return (
           <View style={s.weekRow}>
             <WeekDots levels={levels} monday={w.monday} today={today} />
-            <Text style={s.weekText}>{streakMessage(streak, logged.has(today))}</Text>
+            <Text style={s.weekText}>{streakMessage(streak, logged.has(today), w.logged)}</Text>
             <View style={s.legendRow}>
               <LegendDot style={s.weekDotOn} label="Every meal" />
               <LegendDot style={s.weekDotPartial} label="Partly logged" />
