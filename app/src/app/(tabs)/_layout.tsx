@@ -19,6 +19,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: icon('sunny-outline') }} />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('calendar-outline') }} />
       <Tabs.Screen name="plan" options={{ title: 'My plan', tabBarIcon: icon('leaf-outline') }} />
       <Tabs.Screen name="resources" options={{ title: 'Resources', tabBarIcon: icon('book-outline') }} />
     </Tabs>

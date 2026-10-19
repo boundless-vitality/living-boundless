@@ -3,7 +3,7 @@ import { addDays } from '../src/dates';
 import { carbCyclingPlan } from '../src/fixtures';
 import type { PlanRecord } from '../src/importing';
 import { buildReport } from '../src/report';
-import { currentStreak, dayLevels, loggedDays, waterToGo, waterTotal, weekSummary, weekMessage, type DayEntry, type MealLogData } from '../src/tracking';
+import { currentStreak, dayLevels, streakMessage, loggedDays, waterToGo, waterTotal, weekSummary, weekMessage, type DayEntry, type MealLogData } from '../src/tracking';
 
 const today = '2026-11-12'; // Thursday
 
@@ -160,5 +160,13 @@ describe('report supplements', () => {
     expect(magRow.cells[5]).toBe('no'); // Sunday Nov 8
     expect(magRow.cells[7]).toBe('none'); // Nov 10, nothing logged
     expect(r.grid!.columns[0]).toEqual({ date: '2026-11-03', day: '3', weekday: 'T' });
+  });
+});
+
+describe('streakMessage', () => {
+  it('celebrates showing up without mentioning misses', () => {
+    expect(streakMessage(4, true)).toBe("You're showing up: 4 days in a row.");
+    expect(streakMessage(1, true)).toBe('You showed up today. Nice.');
+    expect(streakMessage(0, false)).not.toMatch(/miss|fail|behind/i);
   });
 });

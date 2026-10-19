@@ -156,6 +156,13 @@ export function weekMessage(logged: number, elapsed: number): string {
   return `${logged} of ${elapsed} days logged this week. Nice work showing up.`;
 }
 
+/** One encouraging line about showing up. Never mentions missed days. */
+export function streakMessage(streak: number, loggedToday: boolean): string {
+  if (streak >= 2) return `You're showing up: ${streak} days in a row.`;
+  if (streak === 1) return loggedToday ? 'You showed up today. Nice.' : 'You showed up yesterday. Keep it going today.';
+  return 'Log anything today to start a streak.';
+}
+
 export function datesInRange(from: DateStr, to: DateStr): DateStr[] {
   const n = daysBetween(from, to);
   return Array.from({ length: Math.max(0, n + 1) }, (_, i) => addDays(from, i));

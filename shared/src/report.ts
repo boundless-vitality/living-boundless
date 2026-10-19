@@ -26,6 +26,9 @@ export interface ReportDay {
   meals: ReportMeal[];
   /** Supplements in the plan that day: taken or not. Empty if nothing was logged that day. */
   supplements: { name: string; taken: boolean }[];
+  /** Check-in scores, 1–5, if given. */
+  energy?: number;
+  mood?: number;
   lines: { label: string; value: string }[];
 }
 
@@ -194,7 +197,7 @@ export function buildReport(input: {
     }
 
     gridFacts.push({ date, level: !active ? 'na' : empty ? 'none' : allMealsLogged ? 'full' : 'partial', plan: rec?.plan, entry, active });
-    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, supplements, lines };
+    return { date, dateLabel: formatLong(date), dayPlanName, empty, beforePlan, meals, supplements, energy: entry?.checkIn?.energy, mood: entry?.checkIn?.mood, lines };
   });
 
   // Supplement consistency, with a gentle pattern note when misses cluster on one weekday.

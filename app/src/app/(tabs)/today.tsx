@@ -1,7 +1,7 @@
 import {
-  PROVIDER_NAME, addDays, currentStreak, type DayLevel, weekMessage, weekSummary, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
+  PROVIDER_NAME, addDays, currentStreak, type DayLevel, streakMessage, weekSummary, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
 } from '@lb/shared';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MealLog } from '@/lib/db';
@@ -21,6 +21,11 @@ export default function Today() {
   const { plans, logs, loadLogs, name, flash, setFlash, lastChange, undo, dismissUndo, logged, levels } = store;
   const today = todayLocal();
   const [date, setDate] = useState<DateStr>(today);
+  // Opened from History with a specific day.
+  const params = useLocalSearchParams<{ date?: string; t?: string }>();
+  useEffect(() => {
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date);
+  }, [params.date, params.t]);
 
   // Reload when coming back from the log sheet, and pick up a new day after midnight.
   useFocusEffect(
@@ -103,11 +108,12 @@ export default function Today() {
         return (
           <View style={s.weekRow}>
             <WeekDots levels={levels} monday={w.monday} today={today} />
-            <Text style={s.weekText}>
-              {weekMessage(w.logged, w.elapsed)}
-              {streak >= 2 ? `  ${streak} days in a row.` : ''}
-            </Text>
-            <Text style={s.weekLegend}>Dark: every meal logged · Light: part of the day · Empty: nothing logged</Text>
+            <Text style={s.weekText}>{streakMessage(streak, logged.has(today))}</Text>
+            <View style={s.legendRow}>
+              <LegendDot style={s.weekDotOn} label="Every meal" />
+              <LegendDot style={s.weekDotPartial} label="Partly logged" />
+              <LegendDot label="Nothing logged" />
+            </View>
           </View>
         );
       })()}
@@ -188,6 +194,15 @@ function StatusLine({ log }: { log?: MealLog }) {
   );
 }
 
+function LegendDot({ style, label }: { style?: object; label: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <View style={[s.weekDot, { width: 10, height: 10, borderRadius: 5 }, style]} />
+      <Text style={s.weekLegend}>{label}</Text>
+    </View>
+  );
+}
+
 function WeekDots({ levels, monday, today }: { levels: Map<DateStr, DayLevel>; monday: DateStr; today: DateStr }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}>
@@ -220,7 +235,8 @@ const s = StyleSheet.create({
   weekDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colors.sand, backgroundColor: colors.white },
   weekDotOn: { backgroundColor: colors.moss, borderColor: colors.moss },
   weekDotPartial: { backgroundColor: '#d6dcc9', borderColor: colors.sage },
-  weekLegend: { fontFamily: fonts.body, fontSize: 12, color: colors.charcoal, textAlign: 'center' },
+  weekLegend: { fontFamily: fonts.body, fontSize: 12, color: colors.charcoal },
+  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
   weekLetter: { fontFamily: fonts.semi, fontSize: 11, color: colors.charcoal },
   todayBtn: { backgroundColor: colors.offBlack, borderRadius: radius.pill, paddingVertical: 7, paddingHorizontal: 14 },
   todayBtnText: { fontFamily: fonts.semi, fontSize: 14, color: colors.cream },
