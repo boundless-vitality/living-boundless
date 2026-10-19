@@ -1,28 +1,11 @@
 // On-device storage (SQLite). Nothing here ever leaves the phone.
-import type { DateStr, Plan, PlanRecord } from '@lb/shared';
+import type { DateStr, DayEntry, MealLogData, MealStatus, Plan, PlanRecord, WhenKind } from '@lb/shared';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DB_NAME = 'living-boundless.db';
 
-export type MealStatus = 'followed' | 'substituted' | 'skipped';
-/** now = "just now", earlier = "earlier today" (no exact time), time = picked, planned = around the planned time. */
-export type WhenKind = 'now' | 'earlier' | 'time' | 'planned';
-
-export interface MealLog {
-  date: DateStr;
-  planId: string;
-  mealId: number;
-  planVersion: number;
-  mealLabel: string;
-  status: MealStatus;
-  note?: string;
-  /** pick-one item index → option index chosen */
-  choices?: Record<number, number>;
-  whenKind: WhenKind;
-  /** 'HH:MM' local, when known */
-  eatenAt?: string;
-  loggedAt: string;
-}
+export type { MealStatus, WhenKind };
+export type MealLog = MealLogData;
 
 export interface StoredPlan extends PlanRecord {
   rowId: number;
@@ -61,6 +44,13 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
       PRAGMA user_version = 1;
     `);
     v = 1;
+  }
+  if (v < 2) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS day_entries (date TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
+      PRAGMA user_version = 2;
+    `);
+    v = 2;
   }
 }
 
@@ -126,6 +116,36 @@ const fromRow = (r: LogRow): MealLog => ({
   loggedAt: r.logged_at,
 });
 
+export async function logsInRange(db: SQLiteDatabase, from: DateStr, to: DateStr): Promise<MealLog[]> {
+  const rows = await db.getAllAsync<LogRow>('SELECT * FROM meal_logs WHERE date >= ? AND date <= ? ORDER BY date', from, to);
+  return rows.map(fromRow);
+}
+
+export async function getEntry(db: SQLiteDatabase, date: DateStr): Promise<DayEntry | undefined> {
+  const r = await db.getFirstAsync<{ data: string }>('SELECT data FROM day_entries WHERE date = ?', date);
+  return r ? (JSON.parse(r.data) as DayEntry) : undefined;
+}
+
+export async function saveEntry(db: SQLiteDatabase, entry: DayEntry): Promise<void> {
+  await db.runAsync('INSERT OR REPLACE INTO day_entries (date, data) VALUES (?, ?)', entry.date, JSON.stringify(entry));
+}
+
+export async function entriesInRange(db: SQLiteDatabase, from: DateStr, to: DateStr): Promise<DayEntry[]> {
+  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM day_entries WHERE date >= ? AND date <= ? ORDER BY date', from, to);
+  return rows.map((r) => JSON.parse(r.data) as DayEntry);
+}
+
+/** Every date with a meal log (for streaks). */
+export async function mealLogDates(db: SQLiteDatabase): Promise<DateStr[]> {
+  const rows = await db.getAllAsync<{ date: string }>('SELECT DISTINCT date FROM meal_logs');
+  return rows.map((r) => r.date);
+}
+
+export async function allEntries(db: SQLiteDatabase): Promise<DayEntry[]> {
+  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM day_entries');
+  return rows.map((r) => JSON.parse(r.data) as DayEntry);
+}
+
 export async function logsForDate(db: SQLiteDatabase, date: DateStr): Promise<MealLog[]> {
   const rows = await db.getAllAsync<LogRow>('SELECT * FROM meal_logs WHERE date = ?', date);
   return rows.map(fromRow);
@@ -179,5 +199,5 @@ export async function insertPlanRecord(db: SQLiteDatabase, plan: Plan, activated
 
 /** Erases every plan, log and setting on this phone. Testing builds only. */
 export async function clearAll(db: SQLiteDatabase): Promise<void> {
-  await db.execAsync('DELETE FROM meal_logs; DELETE FROM plans; DELETE FROM settings;');
+  await db.execAsync('DELETE FROM meal_logs; DELETE FROM day_entries; DELETE FROM plans; DELETE FROM settings;');
 }

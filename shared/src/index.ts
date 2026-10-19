@@ -7,4 +7,6 @@ export * from './validate';
 export * from './codec';
 export * from './importing';
 export * from './builders';
+export * from './tracking';
+export * from './report';
 export { SAMPLE_PLANS, simplePlan, carbCyclingPlan, fourWeekPlan } from './fixtures';

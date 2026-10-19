@@ -1,7 +1,8 @@
 import { activeRangeText } from '@lb/shared';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, Switch, TextInput, View } from 'react-native';
+import { askPermission, mealLabels } from '@/lib/reminders';
 import { useStore } from '@/lib/store';
 import { Body, Button, Card, Label, Screen, Title } from '@/ui/components';
 import { PlanView } from '@/ui/PlanView';
@@ -9,7 +10,8 @@ import { colors, fonts } from '@/ui/theme';
 
 export default function MyPlan() {
   const router = useRouter();
-  const { active, plans, name, setName, loadDemoData, eraseEverything } = useStore();
+  const { active, plans, name, setName, loadDemoData, eraseEverything, reminders, setReminders } = useStore();
+  const labels = mealLabels(plans);
   const [first, setFirst] = useState(name ?? '');
   const previous = plans.filter((p) => p.replacedOn).reverse();
 
@@ -17,7 +19,8 @@ export default function MyPlan() {
     <Screen>
       {active ? <PlanView plan={active.plan} /> : <Body>No active plan yet.</Body>}
 
-      <Button title="Add a new plan" kind="secondary" onPress={() => router.push('/add')} style={{ marginTop: 8 }} />
+      <Button title="Share my report" onPress={() => router.push('/report')} style={{ marginTop: 8 }} />
+      <Button title="Add a new plan" kind="secondary" onPress={() => router.push('/add')} />
 
       {previous.length > 0 && (
         <View style={{ gap: 10, marginTop: 8 }}>
@@ -31,6 +34,42 @@ export default function MyPlan() {
             </Pressable>
           ))}
         </View>
+      )}
+
+      {active && (
+        <Card style={{ gap: 10, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Label>Meal reminders</Label>
+              <Body muted small>A gentle nudge when each meal window starts.</Body>
+            </View>
+            <Switch
+              value={reminders.enabled}
+              trackColor={{ true: colors.olive, false: colors.sand }}
+              onValueChange={async (on) => {
+                if (on && !(await askPermission())) {
+                  Alert.alert('Notifications are off', 'To get reminders, allow notifications for this app in Settings.', [
+                    { text: 'Not now', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => Linking.openSettings() },
+                  ]);
+                  return;
+                }
+                await setReminders({ ...reminders, enabled: on });
+              }}
+            />
+          </View>
+          {reminders.enabled &&
+            labels.map((l) => (
+              <View key={l} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Body>{l}</Body>
+                <Switch
+                  value={!reminders.off.includes(l)}
+                  trackColor={{ true: colors.olive, false: colors.sand }}
+                  onValueChange={(on) => setReminders({ ...reminders, off: on ? reminders.off.filter((x) => x !== l) : [...reminders.off, l] })}
+                />
+              </View>
+            ))}
+        </Card>
       )}
 
       <Card style={{ gap: 8, marginTop: 8 }}>

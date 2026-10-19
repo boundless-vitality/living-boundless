@@ -1,5 +1,5 @@
 import {
-  PROVIDER_NAME, addDays, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
+  PROVIDER_NAME, addDays, currentStreak, weekMessage, weekSummary, formatLong, formatShort, hasSchedule, planForDate, resolveDay, sortMeals, todayLocal, type DateStr, type Meal,
 } from '@lb/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -8,6 +8,7 @@ import type { MealLog } from '@/lib/db';
 import { STATUS_LABEL, whenText } from '@/lib/logText';
 import { useStore } from '@/lib/store';
 import { Body, Card, Label, LinkText, Screen, Title, TopBar } from '@/ui/components';
+import { DayTracking } from '@/ui/DayTracking';
 import { MealContents, MealHeader } from '@/ui/MealContents';
 import { colors, fonts, radius } from '@/ui/theme';
 
@@ -16,7 +17,7 @@ const FUTURE_DAYS = 6;
 export default function Today() {
   const router = useRouter();
   const store = useStore();
-  const { plans, logs, loadLogs, name, flash, setFlash, lastChange, undo, dismissUndo } = store;
+  const { plans, logs, loadLogs, name, flash, setFlash, lastChange, undo, dismissUndo, logged } = store;
   const today = todayLocal();
   const [date, setDate] = useState<DateStr>(today);
 
@@ -94,6 +95,20 @@ export default function Today() {
         <Arrow dir="›" disabled={!canForward} onPress={() => setDate(addDays(date, 1))} label="Next day" />
       </View>
 
+      {date === today && logged.size > 0 && (() => {
+        const w = weekSummary(logged, today, earliest);
+        const streak = currentStreak(logged, today);
+        return (
+          <View style={s.weekRow}>
+            <WeekDots logged={logged} monday={w.monday} today={today} />
+            <Text style={s.weekText}>
+              {weekMessage(w.logged, w.elapsed)}
+              {streak >= 2 ? `  ${streak} days in a row.` : ''}
+            </Text>
+          </View>
+        );
+      })()}
+
       {resolved.status === 'active' && hasSchedule(plan) && (
         <View style={s.dayPlanRow}>
           <View style={s.leaf} />
@@ -147,13 +162,7 @@ export default function Today() {
         );
       })}
 
-      {resolved.status === 'active' && plan.postWorkoutCarbs && (
-        <Card style={{ borderLeftWidth: 4, borderLeftColor: colors.sage }}>
-          <Label>After strength training</Label>
-          <Body semi style={{ marginTop: 6 }}>{plan.postWorkoutCarbs.grams} g carbs: {plan.postWorkoutCarbs.foods}</Body>
-          {plan.postWorkoutCarbs.note ? <Body muted small>{plan.postWorkoutCarbs.note}</Body> : null}
-        </Card>
-      )}
+      {resolved.status === 'active' && !isFuture && <DayTracking plan={plan} date={date} />}
     </Screen>
   );
 }
@@ -176,6 +185,24 @@ function StatusLine({ log }: { log?: MealLog }) {
   );
 }
 
+function WeekDots({ logged, monday, today }: { logged: Set<DateStr>; monday: DateStr; today: DateStr }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}>
+      {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((l, i) => {
+        const d = addDays(monday, i);
+        const on = logged.has(d);
+        const future = d > today;
+        return (
+          <View key={i} style={{ alignItems: 'center', gap: 3 }}>
+            <View style={[s.weekDot, on && s.weekDotOn, future && { opacity: 0.35 }]} />
+            <Text style={s.weekLetter}>{l}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function Arrow({ dir, disabled, onPress, label }: { dir: string; disabled: boolean; onPress: () => void; label: string }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} hitSlop={14} accessibilityRole="button" accessibilityLabel={label} style={[s.arrow, disabled && { opacity: 0.25 }]}>
@@ -185,6 +212,11 @@ function Arrow({ dir, disabled, onPress, label }: { dir: string; disabled: boole
 }
 
 const s = StyleSheet.create({
+  weekRow: { backgroundColor: colors.cream, borderRadius: radius.lg, padding: 12, gap: 8, borderWidth: 1, borderColor: colors.beige },
+  weekText: { fontFamily: fonts.body, fontSize: 15, color: colors.offBlack, textAlign: 'center' },
+  weekDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colors.sand, backgroundColor: colors.white },
+  weekDotOn: { backgroundColor: colors.sage, borderColor: colors.moss },
+  weekLetter: { fontFamily: fonts.semi, fontSize: 11, color: colors.charcoal },
   todayBtn: { backgroundColor: colors.offBlack, borderRadius: radius.pill, paddingVertical: 7, paddingHorizontal: 14 },
   todayBtnText: { fontFamily: fonts.semi, fontSize: 14, color: colors.cream },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },

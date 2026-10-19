@@ -26,6 +26,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.offWhite } }}>
           <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
           <Stack.Screen name="log" options={{ presentation: "modal" }} />
+          <Stack.Screen name="checkin" options={{ presentation: "modal" }} />
         </Stack>
       </StoreProvider>
     </SQLiteProvider>

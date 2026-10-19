@@ -1,9 +1,13 @@
 // App state: plans on this phone, meal logs, and the patient's (optional) first name.
-import { decideImport, decodePlanLink, importMessage, todayLocal, type DateStr, type ImportDecision } from '@lb/shared';
+import { decideImport, decodePlanLink, importMessage, loggedDays, todayLocal, type DateStr, type DayEntry, type ImportDecision } from '@lb/shared';
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { activatePlan, deleteLog, getSetting, loadPlans, logsForDate, saveLog, setSetting, type MealLog, type StoredPlan } from './db';
+import {
+  activatePlan, allEntries, deleteLog, getEntry, getSetting, loadPlans, logsForDate, mealLogDates, saveEntry, saveLog, setSetting, type MealLog, type StoredPlan,
+} from './db';
 import { clearAll, loadDemo } from './demo';
+import { DEFAULT_REMINDERS, rescheduleReminders, type ReminderSettings } from './reminders';
+import { AppState } from 'react-native';
 
 export type ImportResult =
   | { ok: false; title: string; body: string }
@@ -34,6 +38,15 @@ interface Store {
   dismissUndo: () => void;
   flash?: { title: string; body: string };
   setFlash: (f?: { title: string; body: string }) => void;
+  entries: Record<DateStr, DayEntry | undefined>;
+  loadEntry: (date: DateStr) => Promise<void>;
+  updateEntry: (date: DateStr, fn: (e: DayEntry) => DayEntry) => Promise<void>;
+  /** Dates with anything logged (for the streak and weekly view). */
+  logged: Set<DateStr>;
+  disclaimerAck: boolean;
+  ackDisclaimer: () => Promise<void>;
+  reminders: ReminderSettings;
+  setReminders: (r: ReminderSettings) => Promise<void>;
   /** Testing builds only. */
   loadDemoData: () => Promise<void>;
   eraseEverything: () => Promise<void>;
@@ -49,14 +62,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<Record<DateStr, MealLog[]>>({});
   const [lastChange, setLastChange] = useState<UndoableChange>();
   const [flash, setFlash] = useState<{ title: string; body: string }>();
+  const [entries, setEntries] = useState<Record<DateStr, DayEntry | undefined>>({});
+  const [logged, setLogged] = useState<Set<DateStr>>(new Set());
+  const [disclaimerAck, setDisclaimerAck] = useState(false);
+  const [reminders, setRemindersState] = useState<ReminderSettings>(DEFAULT_REMINDERS);
+
+  const refreshLogged = useCallback(async () => {
+    setLogged(loggedDays(await mealLogDates(db), await allEntries(db)));
+  }, [db]);
 
   useEffect(() => {
     (async () => {
       setPlans(await loadPlans(db));
       setNameState(await getSetting(db, 'firstName'));
+      setDisclaimerAck((await getSetting(db, 'disclaimerAck')) === '1');
+      const r = await getSetting(db, 'reminders');
+      if (r) setRemindersState(JSON.parse(r));
+      await refreshLogged();
       setReady(true);
     })();
-  }, [db]);
+  }, [db, refreshLogged]);
+
+  // Keep scheduled reminders in step with the plan, the settings, and the calendar.
+  useEffect(() => {
+    if (!ready) return;
+    rescheduleReminders(plans, reminders).catch(() => {});
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') rescheduleReminders(plans, reminders).catch(() => {});
+    });
+    return () => sub.remove();
+  }, [ready, plans, reminders]);
+
+  const setReminders = useCallback(
+    async (r: ReminderSettings) => {
+      await setSetting(db, 'reminders', JSON.stringify(r));
+      setRemindersState(r);
+    },
+    [db],
+  );
 
   const active = useMemo(() => plans.find((p) => !p.replacedOn), [plans]);
 
@@ -101,6 +144,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const previous = findLog(log.date, log.planId, log.mealId);
       await saveLog(db, log);
       await loadLogs(log.date);
+      await refreshLogged();
       setLastChange({ message, date: log.date, planId: log.planId, mealId: log.mealId, previous });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,6 +156,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const previous = findLog(date, planId, mealId);
       await deleteLog(db, date, planId, mealId);
       await loadLogs(date);
+      await refreshLogged();
       setLastChange({ message, date, planId, mealId, previous });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,12 +169,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (c.previous) await saveLog(db, c.previous);
     else await deleteLog(db, c.date, c.planId, c.mealId);
     await loadLogs(c.date);
+    await refreshLogged();
     setLastChange(undefined);
   }, [db, lastChange, loadLogs]);
+
+  const loadEntry = useCallback(
+    async (date: DateStr) => {
+      const e = await getEntry(db, date);
+      setEntries((m) => ({ ...m, [date]: e }));
+    },
+    [db],
+  );
+
+  const updateEntry = useCallback(
+    async (date: DateStr, fn: (e: DayEntry) => DayEntry) => {
+      const current = (await getEntry(db, date)) ?? { date };
+      const next = fn(current);
+      await saveEntry(db, next);
+      setEntries((m) => ({ ...m, [date]: next }));
+      await refreshLogged();
+    },
+    [db, refreshLogged],
+  );
+
+  const ackDisclaimer = async () => {
+    await setSetting(db, 'disclaimerAck', '1');
+    setDisclaimerAck(true);
+  };
 
   const reloadAll = async () => {
     setPlans(await loadPlans(db));
     setNameState(await getSetting(db, 'firstName'));
+    setDisclaimerAck((await getSetting(db, 'disclaimerAck')) === '1');
+    const r = await getSetting(db, 'reminders');
+    setRemindersState(r ? JSON.parse(r) : DEFAULT_REMINDERS);
+    setEntries({});
+    await refreshLogged();
     setLogs({});
     setLastChange(undefined);
   };
@@ -160,6 +235,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dismissUndo: () => setLastChange(undefined),
     flash,
     setFlash,
+    entries,
+    loadEntry,
+    updateEntry,
+    logged,
+    disclaimerAck,
+    ackDisclaimer,
+    reminders,
+    setReminders,
     loadDemoData,
     eraseEverything,
   };

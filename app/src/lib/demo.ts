@@ -2,7 +2,8 @@
 // realistic, imperfect logging history, so the app can be shown as if in real use.
 import { addDays, carbCyclingPlan, isPickOne, resolveDay, sortMeals, toHHMM, todayLocal, type Plan } from '@lb/shared';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { clearAll, insertPlanRecord, saveLog, setSetting, type MealLog, type MealStatus } from './db';
+import { CHECKIN_GROUPS, type DayEntry } from '@lb/shared';
+import { clearAll, insertPlanRecord, saveEntry, saveLog, setSetting, type MealLog, type MealStatus } from './db';
 
 const DEMO_ID = 'de30de30-0000-4000-8000-00000000d3e0';
 const SUBS = ['4 turkey roll-ups', 'Grilled chicken salad at lunch out', 'Protein bar instead', 'Leftover salmon and rice', 'Eggs and toast'];
@@ -63,6 +64,20 @@ export async function loadDemo(db: SQLiteDatabase): Promise<void> {
       };
       await saveLog(db, log);
     }
+    // Everything else for the day, also imperfect on purpose.
+    const tags = CHECKIN_GROUPS.flatMap((g) => g.tags).filter((t) => t !== 'dizzy' && t !== 'nauseous');
+    const entry: DayEntry = {
+      date,
+      supplements: plan.supplements.filter(() => rand() < 0.8).map((s) => s.name),
+      trained: rand() < 0.45,
+      water: plan.features.water ? Math.floor(4 + rand() * 7) : undefined,
+      alcohol: plan.features.alcohol ? (rand() < 0.2 ? { drank: true, drinks: { wine: 1 + Math.floor(rand() * 2) } } : rand() < 0.8 ? { drank: false } : undefined) : undefined,
+      checkIn:
+        plan.features.checkIn && rand() < 0.7
+          ? { energy: 2 + Math.floor(rand() * 4), mood: 2 + Math.floor(rand() * 4), tags: rand() < 0.4 ? [tags[Math.floor(rand() * tags.length)]] : [], note: rand() < 0.15 ? 'Busy day at work' : undefined }
+          : undefined,
+    };
+    await saveEntry(db, entry);
   }
 }
 

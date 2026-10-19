@@ -9,6 +9,7 @@ import type { MealLog, MealStatus, WhenKind } from '@/lib/db';
 import { STATUS_LABEL, nowHHMM } from '@/lib/logText';
 import { useStore } from '@/lib/store';
 import { Body, Button, Chip, Label, LinkText, Title, TopBar } from '@/ui/components';
+import { DisclaimerGate, DisclaimerLine } from '@/ui/Disclaimer';
 import { MealContents, MealHeader } from '@/ui/MealContents';
 import { colors, fonts, radius } from '@/ui/theme';
 
@@ -24,7 +25,7 @@ function timeToDate(hhmm: string): Date {
 export default function LogMeal() {
   const router = useRouter();
   const { date, mealId } = useLocalSearchParams<{ date: DateStr; mealId: string }>();
-  const { plans, logs, saveMealLog, removeMealLog } = useStore();
+  const { plans, logs, saveMealLog, removeMealLog, disclaimerAck } = useStore();
   const plan = planForDate(plans, date)?.plan;
   const meal: Meal | undefined = useMemo(
     () => plan?.dayPlans.flatMap((d) => d.meals).find((m) => m.id === Number(mealId)),
@@ -127,7 +128,8 @@ export default function LogMeal() {
           {status === 'substituted' && (
             <View style={{ gap: 8 }}>
               <Label>What did you have instead? (optional)</Label>
-              <TextInput
+              <DisclaimerGate />
+              {disclaimerAck && <TextInput
                 value={note}
                 onChangeText={setNote}
                 placeholder="e.g. 4 turkey roll-ups"
@@ -135,7 +137,8 @@ export default function LogMeal() {
                 style={s.input}
                 maxLength={200}
                 returnKeyType="done"
-              />
+              />}
+              {disclaimerAck && <DisclaimerLine />}
             </View>
           )}
 
