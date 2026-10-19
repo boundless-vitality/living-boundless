@@ -3,6 +3,7 @@ import { decideImport, decodePlanLink, importMessage, todayLocal, type DateStr, 
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { activatePlan, deleteLog, getSetting, loadPlans, logsForDate, saveLog, setSetting, type MealLog, type StoredPlan } from './db';
+import { clearAll, loadDemo } from './demo';
 
 export type ImportResult =
   | { ok: false; title: string; body: string }
@@ -33,6 +34,9 @@ interface Store {
   dismissUndo: () => void;
   flash?: { title: string; body: string };
   setFlash: (f?: { title: string; body: string }) => void;
+  /** Testing builds only. */
+  loadDemoData: () => Promise<void>;
+  eraseEverything: () => Promise<void>;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -123,6 +127,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLastChange(undefined);
   }, [db, lastChange, loadLogs]);
 
+  const reloadAll = async () => {
+    setPlans(await loadPlans(db));
+    setNameState(await getSetting(db, 'firstName'));
+    setLogs({});
+    setLastChange(undefined);
+  };
+
+  const loadDemoData = async () => {
+    await loadDemo(db);
+    await reloadAll();
+  };
+
+  const eraseEverything = async () => {
+    await clearAll(db);
+    await reloadAll();
+  };
+
   const value: Store = {
     ready,
     plans,
@@ -139,6 +160,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dismissUndo: () => setLastChange(undefined),
     flash,
     setFlash,
+    loadDemoData,
+    eraseEverything,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

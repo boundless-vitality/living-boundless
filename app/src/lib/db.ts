@@ -163,3 +163,21 @@ export async function setSetting(db: SQLiteDatabase, key: string, value: string 
   if (value == null || value === '') await db.runAsync('DELETE FROM settings WHERE key = ?', key);
   else await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', key, value);
 }
+
+/** Inserts a plan with explicit dates (used by demo mode). */
+export async function insertPlanRecord(db: SQLiteDatabase, plan: Plan, activatedOn: DateStr, activatedAt: string, replacedOn?: DateStr): Promise<void> {
+  await db.runAsync(
+    'INSERT INTO plans (plan_id, version, json, activated_on, activated_at, replaced_on) VALUES (?, ?, ?, ?, ?, ?)',
+    plan.id,
+    plan.version,
+    JSON.stringify(plan),
+    activatedOn,
+    activatedAt,
+    replacedOn ?? null,
+  );
+}
+
+/** Erases every plan, log and setting on this phone. Testing builds only. */
+export async function clearAll(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync('DELETE FROM meal_logs; DELETE FROM plans; DELETE FROM settings;');
+}

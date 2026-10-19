@@ -3,12 +3,12 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useStore } from '@/lib/store';
-import { Body, Button, Label, Screen, Title } from '@/ui/components';
+import { Body, Button, Label, LinkText, Screen, Title } from '@/ui/components';
 import { colors, fonts } from '@/ui/theme';
 
 export default function Welcome() {
   const router = useRouter();
-  const { setName, name } = useStore();
+  const { setName, name, loadDemoData } = useStore();
   const [first, setFirst] = useState(name ?? '');
 
   return (
@@ -54,6 +54,11 @@ export default function Welcome() {
           router.push('/add');
         }}
       />
+      {__DEV__ && (
+        <View style={{ alignItems: 'center', marginTop: 4 }}>
+          <LinkText title="Testing: load a demo instead" onPress={async () => { await loadDemoData(); router.replace('/today'); }} />
+        </View>
+      )}
     </Screen>
   );
 }

@@ -1,21 +1,20 @@
 import { activeRangeText } from '@lb/shared';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 import { useStore } from '@/lib/store';
-import { Body, Button, Card, Label, LinkText, Screen, Title, TopBar } from '@/ui/components';
+import { Body, Button, Card, Label, Screen, Title } from '@/ui/components';
 import { PlanView } from '@/ui/PlanView';
 import { colors, fonts } from '@/ui/theme';
 
 export default function MyPlan() {
   const router = useRouter();
-  const { active, plans, name, setName } = useStore();
+  const { active, plans, name, setName, loadDemoData, eraseEverything } = useStore();
   const [first, setFirst] = useState(name ?? '');
   const previous = plans.filter((p) => p.replacedOn).reverse();
 
   return (
     <Screen>
-      <TopBar left={<LinkText title="‹ Today" onPress={() => router.back()} />} />
       {active ? <PlanView plan={active.plan} /> : <Body>No active plan yet.</Body>}
 
       <Button title="Add a new plan" kind="secondary" onPress={() => router.push('/add')} style={{ marginTop: 8 }} />
@@ -47,6 +46,32 @@ export default function MyPlan() {
         />
         <Body muted small>Your plan and logs stay on this phone. Nothing is sent to anyone unless you choose to share it.</Body>
       </Card>
+      {__DEV__ && (
+        <Card style={{ gap: 10, marginTop: 8, borderStyle: 'dashed', borderColor: colors.bronze }}>
+          <Label>Testing tools (not in the real app)</Label>
+          <Body muted small>For trying things out and showing the app. Patients never see this.</Body>
+          <Button
+            title="Load demo: 2 weeks of logs"
+            kind="secondary"
+            onPress={() =>
+              Alert.alert('Load demo?', 'This replaces everything on this phone with a demo plan and two weeks of sample logs.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Load demo', onPress: async () => { await loadDemoData(); router.navigate('/today'); } },
+              ])
+            }
+          />
+          <Button
+            title="Erase everything on this phone"
+            kind="ghost"
+            onPress={() =>
+              Alert.alert('Erase everything?', 'Removes all plans and logs from this phone so you can start fresh.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Erase', style: 'destructive', onPress: async () => { await eraseEverything(); router.replace('/welcome'); } },
+              ])
+            }
+          />
+        </Card>
+      )}
     </Screen>
   );
 }

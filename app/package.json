@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo-google-fonts/league-spartan": "^0.4.2",
     "@expo-google-fonts/source-sans-3": "^0.4.2",
+    "@expo/vector-icons": "^15.0.2",
     "@lb/shared": "*",
     "@react-native-community/datetimepicker": "9.1.0",
     "expo": "~57.0.30",

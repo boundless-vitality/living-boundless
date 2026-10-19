@@ -68,7 +68,6 @@ export default function Today() {
     >
       <TopBar
         left={<Body muted small>{name ? `hi, ${name}` : ' '}</Body>}
-        right={<LinkText title="My plan" onPress={() => router.push('/plan')} />}
       />
 
       {flash && (
